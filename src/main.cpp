@@ -3,6 +3,8 @@
 #include <FastAccelStepper.h>
 #include <ArtnetETH.h>
 #include <ESPmDNS.h>
+#include <ESPAsyncWebServer.h>
+#include <ElegantOTA.h>
 
 #define stepPinStepper 15
 #define dirPinStepper 14
@@ -10,6 +12,9 @@
 
 long m1Max = 3200;
 long m2Max = 3200;
+
+AsyncWebServer webserver(80);
+unsigned long ota_progress_millis = 0;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper = NULL;
@@ -74,6 +79,30 @@ void callback(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata
 
 }
 
+void onOTAStart() {
+  // Log when OTA has started
+  Serial.println("OTA update started!");
+  // <Add your own code here>
+}
+
+void onOTAProgress(size_t current, size_t final) {
+  // Log every 1 second
+  if (millis() - ota_progress_millis > 1000) {
+    ota_progress_millis = millis();
+    Serial.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+  }
+}
+
+void onOTAEnd(bool success) {
+  // Log when OTA has finished
+  if (success) {
+    Serial.println("OTA update finished successfully!");
+  } else {
+    Serial.println("There was an error during OTA update!");
+  }
+  // <Add your own code here>
+}
+
 
 
 void setup() {
@@ -109,14 +138,35 @@ void setup() {
     
   }
 
-
+  
   artnet.begin();
   artnet.subscribeArtDmxUniverse(net, subnet, universe1, callback);
   Serial.print("Listening");
+
+  
+  
+  
+  // #####  start OTA webserver ######
+  webserver.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", "Hi! This is ElegantOTA AsyncDemo.");
+  });
+
+  ElegantOTA.begin(&webserver);    // Start ElegantOTA
+  // ElegantOTA callbacks
+  ElegantOTA.onStart(onOTAStart);
+  ElegantOTA.onProgress(onOTAProgress);
+  ElegantOTA.onEnd(onOTAEnd);
+
+  webserver.begin();
+  Serial.println("HTTP server started");
+
+
+
 }
 
 void loop() {
-  limitSwitch.loop(); // MUST call the loop() function first
+  limitSwitch.loop(); 
+  ElegantOTA.loop();
   
 
   if(limitSwitch.isPressed())
