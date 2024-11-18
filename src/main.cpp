@@ -54,6 +54,62 @@ uint8_t universe2 = 2;  // 0 - 15
 
 unsigned long last = 0;
 
+void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote);
+void homeSteppers();
+
+
+void setup() {
+  Serial.begin(115200);
+  
+  ETH.begin();
+  ETH.config(ip, gateway, subnet_mask);
+
+  MDNS.begin("window1"); 
+  
+  limitSwitch.setDebounceTime(50); // set debounce time to 50 milliseconds
+
+  engine.init();
+  for (uint8_t i = 0; i < 2; i++) {
+    FastAccelStepper *s = NULL;
+    const struct stepper_config_s *config = &stepper_config[i];
+    if (config->step != PIN_UNDEFINED) {
+      s = engine.stepperConnectToPin(config->step, DRIVER_MCPWM_PCNT);
+      if (s) {
+        s->setDirectionPin(config->direction);
+        s->setSpeedInHz(config->speed);
+        s->setAcceleration(config->acceleration);
+      }
+    }
+    stepper[i] = s;
+  }
+
+  artnet.begin();
+  artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
+
+  //homeSteppers();
+}
+
+void loop() {
+  limitSwitch.loop();
+  
+  if(limitSwitch.isPressed())
+    stepper[0]->forceStop();
+    Serial.println("Stepper0 is homed");
+    
+
+  if(limitSwitch.isReleased())
+    Serial.println("The button is released");
+
+
+  artnet.parse();  // check if artnet packet has come and execute callback function
+  
+  if (millis() > last + 1000){
+      Serial.print(".");
+      last = millis();
+    }
+}
+
+
 void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
     // will be called on incoming artnet data
     
@@ -95,52 +151,6 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
 }
 
 
-
-void setup() {
-  Serial.begin(115200);
-  
-  ETH.begin();
-  ETH.config(ip, gateway, subnet_mask);
-
-  MDNS.begin("window1"); 
-  
-  limitSwitch.setDebounceTime(50); // set debounce time to 50 milliseconds
-
-  engine.init();
-  for (uint8_t i = 0; i < 2; i++) {
-    FastAccelStepper *s = NULL;
-    const struct stepper_config_s *config = &stepper_config[i];
-    if (config->step != PIN_UNDEFINED) {
-      s = engine.stepperConnectToPin(config->step, DRIVER_MCPWM_PCNT);
-      if (s) {
-        s->setDirectionPin(config->direction);
-        s->setSpeedInHz(config->speed);
-        s->setAcceleration(config->acceleration);
-      }
-    }
-    stepper[i] = s;
-  }
-
-
-  artnet.begin();
-  artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
-}
-
-void loop() {
-  limitSwitch.loop();
-  
-
-  if(limitSwitch.isPressed())
-    Serial.println("The button is pressed");
-
-  if(limitSwitch.isReleased())
-    Serial.println("The button is released");
-
-
-  artnet.parse();  // check if artnet packet has come and execute callback function
-  
-  if (millis() > last + 1000){
-      Serial.print(".");
-      last = millis();
-    }
+void homeSteppers() {
+  stepper[0]->runForward();
 }
