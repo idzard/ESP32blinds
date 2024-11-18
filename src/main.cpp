@@ -3,6 +3,7 @@
 #include <FastAccelStepper.h>
 #include <ArtnetETH.h>
 #include <ESPmDNS.h>
+#include <Preferences.h>
 
 #define stepPinStepper1 15
 #define dirPinStepper1 14
@@ -28,14 +29,14 @@ const struct stepper_config_s stepper_config[2] = {
       step : stepPinStepper1,
       direction : dirPinStepper1,
       speed: 6000,
-      homingSpeed: 3000,
+      homingSpeed: 2000,
       acceleration: 20000
     },
     {
       step : stepPinStepper2,
       direction : dirPinStepper2,
       speed: 6000,
-      homingSpeed: 3000,
+      homingSpeed: 2000,
       acceleration: 20000
     }};
 
@@ -43,6 +44,8 @@ FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper[2];
 
 ezButton limitSwitch(4);  // create ezButton object that attach to ESP32 pin GPIO4
+
+Preferences preferences;
 
 const IPAddress ip(10, 0, 0, 25);
 const IPAddress gateway(10, 0, 0, 1);
@@ -62,6 +65,12 @@ void homeSteppers();
 
 void setup() {
   Serial.begin(115200);
+
+  // Open Preferences with 'blinds' namespace. Each application module, library, etc
+  // has to use a namespace name to prevent key name collisions. We will open storage in
+  // RW-mode (second parameter has to be false).
+  // Note: Namespace name is limited to 15 chars.
+  preferences.begin("blinds", false);
   
   ETH.begin();
   ETH.config(ip, gateway, subnet_mask);
@@ -87,7 +96,14 @@ void setup() {
   artnet.begin();
   artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
 
-  homeSteppers();
+  if (preferences.getUInt("bottomStepper0", 0) == 0) {
+    homeSteppers();
+  }
+  else 
+  {
+    Serial.print("Stepper0 is already homed at:");
+    Serial.println(preferences.getUInt("bottomStepper0", 0));
+  }
 }
 
 void loop() {
@@ -98,6 +114,9 @@ void loop() {
     stepper[0]->forceStop();
     Serial.println("Stepper0 is homed at:");
     Serial.println(stepper[0]->getCurrentPosition());
+    // Store the position and close the Preferences
+    preferences.putUInt("bottomStepper0", stepper[0]->getCurrentPosition());
+    preferences.end();
   }
   if(limitSwitch.isReleased())
     Serial.println("The button is released");
