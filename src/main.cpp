@@ -12,6 +12,8 @@ const byte buttonPins[] = {4,35,36,39};
 int NUMBER_BUTTONS = sizeof(buttonPins);
 MoToButtons myButtons ( buttonPins, NUMBER_BUTTONS, 20, 500 ) ;
 
+bool calibrating = false;
+bool calibratedStepper[2] = {false, false};
 
 #define stepPinStepper1 15
 #define dirPinStepper1 14
@@ -21,6 +23,10 @@ MoToButtons myButtons ( buttonPins, NUMBER_BUTTONS, 20, 500 ) ;
 
 long m1Max = 3200;
 long m2Max = 3200;
+
+uint32_t stepsTraveledStepper[2];
+uint32_t minPositionStepper[2] = {0,0};
+uint32_t maxPositionStepper[2];
 
 struct stepper_config_s {
   uint8_t step;
@@ -154,6 +160,56 @@ void setup() {
   webserver.begin();
   WebSerial.println("setup done");
 }
+
+void startCalibration(){
+  calibrating = true;
+  calibratedStepper[0] = false;
+  calibratedStepper[1] = false;
+
+}
+
+
+void finishCalibration(uint8_t stepperId){
+    // we are now back at start position. 
+    // Current position will be 0 and steps traveled will be our max position.
+    stepsTraveledStepper[stepperId] = stepper[stepperId]->getCurrentPosition();
+    stepper[stepperId]->setCurrentPosition(0);
+    maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
+    calibratedStepper[stepperId] = true;
+  }
+
+
+
+void limitSwitchPressed(int buttonId){
+  switch (buttonId) {
+    case 0:
+    {
+      //limitStartStepper0
+      stepper[0]->stopMove();
+      if (calibrating){
+        finishCalibration();
+      }  
+    }
+    case 1:
+    {
+      //limitEndStepper0
+      stepper[0]->stopMove();
+      if (calibrating){
+        stepper[0]->runBackward();
+      }  
+    }
+    case 2:
+    {
+      //limitBottomStepper1
+      stepper[1]->stopMove();
+    }
+    case 3:
+    {
+      //limitTopStepper1
+      stepper[1]->stopMove();
+    }
+}
+
 
 void loop() {
   myButtons.processButtons();
