@@ -12,8 +12,7 @@ const byte buttonPins[] = {4,35,36,39};
 int NUMBER_BUTTONS = sizeof(buttonPins);
 MoToButtons myButtons ( buttonPins, NUMBER_BUTTONS, 20, 500 ) ;
 
-bool calibrating = false;
-bool calibratedStepper[2] = {false, false};
+
 
 #define stepPinStepper1 15
 #define dirPinStepper1 14
@@ -23,6 +22,8 @@ bool calibratedStepper[2] = {false, false};
 
 long m1Max = 3200;
 long m2Max = 3200;
+
+bool calibrating = false;
 
 uint32_t stepsTraveledStepper[2];
 uint32_t minPositionStepper[2] = {0,0};
@@ -55,12 +56,6 @@ const struct stepper_config_s stepper_config[2] = {
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper[2];
 
-//ezButton limitBottomStepper0(4);  
-//ezButton limitTopStepper0(35);
-///ezButton limitBottomStepper1(36);
-//ezButton limitTopStepper1(39);
-
-
 Preferences preferences;
 AsyncWebServer webserver(80);
 unsigned long ota_progress_millis = 0;
@@ -77,8 +72,10 @@ uint8_t universe2 = 2;  // 0 - 15
 
 unsigned long lastHeartbeat = 0;
 
+//forward declarations
 void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote);
 void homeSteppers();
+void startCalibration();
 
 void onOTAStart() {
   // Log when OTA has started
@@ -117,7 +114,30 @@ void setup() {
   ETH.config(ip, gateway, subnet_mask);
   MDNS.begin("window1"); 
   
-  //limitSwitch.setDebounceTime(50); // set debounce time to 50 milliseconds
+  //check if we can load calibration from disk
+  bool calibrated = false;
+  bool calibratedStepper[2] = {false, false};
+
+  int savedStepper0 = preferences.getUInt("maxPositionStepper0", 0);
+  if (savedStepper0 != 0){
+    maxPositionStepper[0] = savedStepper0;
+    calibratedStepper[0] = true;
+    Serial.print("stepper0 calibration found:");
+    Serial.println(maxPositionStepper[0]);
+  }
+  int savedStepper1 = preferences.getUInt("maxPositionStepper1", 0);
+  if (savedStepper1 != 0){
+    maxPositionStepper[1] = savedStepper1;
+    calibratedStepper[1] = true;
+    Serial.print("stepper1 calibration found:");
+    Serial.println(maxPositionStepper[1]);
+  }
+  if (calibratedStepper[0] == true && calibratedStepper[1] == true){
+      calibrated = true;
+  }
+
+  // ##### end load calibration ######
+  
 
   engine.init();
   for (uint8_t i = 0; i < 2; i++) {
@@ -156,39 +176,119 @@ void setup() {
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
+  
+ 
+  
+  
+  /* Attach webserial Message Callback */
+  WebSerial.onMessage([&](uint8_t *data, size_t len) {
+
+    WebSerial.println("Received Data...");
+    String message = "";
+    for(size_t i=0; i < len; i++){
+      message += char(data[i]);
+    }
+    WebSerial.println(message);
+    if (message == "calibrate"){
+      startCalibration();
+    }
+  });
+ 
+
   WebSerial.begin(&webserver);
   webserver.begin();
   WebSerial.println("setup done");
 }
 
+
+// ####### START CALIBRATION #################
+
 void startCalibration(){
   calibrating = true;
   calibratedStepper[0] = false;
   calibratedStepper[1] = false;
-  stepper[0]->setSpeedInHz(ste)
 
+  stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
+  stepper[0]->runForward();
+  
+  stepper[1]->setSpeedInHz(stepper_config[0].homingSpeed);
+  stepper[1]->runForward();
 }
 
 
-void finishCalibration(uint8_t stepperId){
+void finishCalibrateStepper(uint8_t stepperId){
     // we are now back at start position. 
     // Current position will be 0 and steps traveled will be our max position.
     stepsTraveledStepper[stepperId] = stepper[stepperId]->getCurrentPosition();
     stepper[stepperId]->setCurrentPosition(0);
     maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
     calibratedStepper[stepperId] = true;
+    
+    if (calibratedStepper[0] == true && calibratedStepper[1] == true){
+      //all calibration done
+     
+      // Store the position and close the Preferences
+      preferences.putUInt("maxPositionStepper0",maxPositionStepper[0]);
+      preferences.putUInt("maxPositionStepper1",maxPositionStepper[1]);
+
+      preferences.end();
+     
+      calibrating = false;
+
+    }
   }
 
 
 
-void limitSwitchPressed(int buttonId){
+void onLimitSwitchPressed(int buttonId){
   switch (buttonId) {
     case 0:
     {
       //limitStartStepper0
       stepper[0]->stopMove();
       if (calibrating && !calibratedStepper[0]){
-        finishCalibration(0);
+        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->runForward();
+      }  
+    }
+    case 1:
+    {
+      //limitEndStepper0
+      stepper[0]->stopMove();
+      if (calibrating && !calibratedStepper[0]){
+        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->runBackward();
+      }  
+    }
+    case 2:
+    {
+      //limitStartStepper1
+      stepper[1]->stopMove();
+      if (calibrating && !calibratedStepper[1]){
+        stepper[1]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[1]->runForward();
+      }  
+    }
+    case 3:
+    {
+      //limitEndStepper1
+      stepper[1]->stopMove();
+      if (calibrating && !calibratedStepper[1]){
+        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->runBackward();
+      }  
+    }
+  }
+}
+
+void onLimitSwitchReleased(int buttonId){
+  switch (buttonId) {
+    case 0:
+    {
+      //limitStartStepper0
+      stepper[0]->stopMove();
+      if (calibrating && !calibratedStepper[0]){
+        finishCalibrateStepper(0);
       }  
     }
     case 1:
@@ -197,6 +297,7 @@ void limitSwitchPressed(int buttonId){
       stepper[0]->stopMove();
       if (calibrating && !calibratedStepper[0]){
         stepper[0]->setCurrentPosition(0);
+        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
         stepper[0]->runBackward();
       }  
     }
@@ -204,8 +305,8 @@ void limitSwitchPressed(int buttonId){
     {
       //limitStartStepper1
       stepper[1]->stopMove();
-      if (calibrating && !calibratedStepper[0]){
-        finishCalibration(0);
+      if (calibrating && !calibratedStepper[1]){
+        finishCalibrateStepper(1);
       }  
     }
     case 3:
@@ -214,23 +315,33 @@ void limitSwitchPressed(int buttonId){
       stepper[1]->stopMove();
       if (calibrating && !calibratedStepper[1]){
         stepper[1]->setCurrentPosition(0);
+        stepper[1]->setSpeedInHz(stepper_config[0].homingSpeed);
         stepper[1]->runBackward();
       }  
     }
+  }
 }
+
+
+
+// ####### END CALIBRATION #################
+
 
 
 void loop() {
   myButtons.processButtons();
-
-  for (int i = 0; i < (NUMBER_BUTTONS); i = i + 1) {
-
-      if (myButtons.pressed(i)) {
+  for (int i = 0; i < (NUMBER_BUTTONS); i = i + 1) 
+  {
+    if (myButtons.pressed(i)) {
       WebSerial.print("Button pressed: ");
       WebSerial.println(i);
-      Serial.print("Button Pressed ");
-      Serial.println(i);
-      }
+      onLimitSwitchPressed(i);
+    }
+    if (myButtons.released(i)) {
+      WebSerial.print("Button released: ");
+      WebSerial.println(i);
+      onLimitSwitchReleased(i);
+    }
   }
 
   
