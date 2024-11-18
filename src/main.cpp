@@ -3,9 +3,15 @@
 #include <ElegantOTA.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
-#include <ezButton.h>
+#include <MoToButtons.h>
 #include <FastAccelStepper.h>
 #include <Preferences.h>
+#include <WebSerial.h>
+
+const byte buttonPins[] = {4,35,36,39}; 
+int NUMBER_BUTTONS = sizeof(buttonPins);
+MoToButtons myButtons ( buttonPins, NUMBER_BUTTONS, 20, 500 ) ;
+
 
 #define stepPinStepper1 15
 #define dirPinStepper1 14
@@ -28,14 +34,14 @@ const struct stepper_config_s stepper_config[2] = {
     {
       step : stepPinStepper1,
       direction : dirPinStepper1,
-      speed: 6000,
+      speed: 7000,
       homingSpeed: 2000,
       acceleration: 20000
     },
     {
       step : stepPinStepper2,
       direction : dirPinStepper2,
-      speed: 6000,
+      speed: 7000,
       homingSpeed: 2000,
       acceleration: 20000
     }};
@@ -43,7 +49,11 @@ const struct stepper_config_s stepper_config[2] = {
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper[2];
 
-ezButton limitSwitch(4);  // create ezButton object that attach to ESP32 pin GPIO4
+//ezButton limitBottomStepper0(4);  
+//ezButton limitTopStepper0(35);
+///ezButton limitBottomStepper1(36);
+//ezButton limitTopStepper1(39);
+
 
 Preferences preferences;
 AsyncWebServer webserver(80);
@@ -101,7 +111,7 @@ void setup() {
   ETH.config(ip, gateway, subnet_mask);
   MDNS.begin("window1"); 
   
-  limitSwitch.setDebounceTime(50); // set debounce time to 50 milliseconds
+  //limitSwitch.setDebounceTime(50); // set debounce time to 50 milliseconds
 
   engine.init();
   for (uint8_t i = 0; i < 2; i++) {
@@ -121,14 +131,14 @@ void setup() {
   artnet.begin();
   artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
 
-  if (preferences.getUInt("bottomStepper0", 0) == 0) {
-    homeSteppers();
-  }
-  else 
-  {
-    Serial.print("Stepper0 is already homed at:");
-    Serial.println(preferences.getUInt("bottomStepper0", 0));
-  }
+  //if (preferences.getUInt("bottomStepper0", 0) == 0) {
+    //homeSteppers();
+  //}
+  //else 
+  //{
+  //  Serial.print("Stepper0 is already homed at:");
+  //  Serial.println(preferences.getUInt("bottomStepper0", 0));
+  //}
 
   // #####  start OTA webserver ######
   webserver.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -140,15 +150,32 @@ void setup() {
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
+  WebSerial.begin(&webserver);
   webserver.begin();
+  WebSerial.println("setup done");
 }
 
 void loop() {
-  limitSwitch.loop();
+  myButtons.processButtons();
+
+  for (int i = 0; i < (NUMBER_BUTTONS); i = i + 1) {
+
+      if (myButtons.pressed(i)) {
+      WebSerial.print("Button pressed: ");
+      WebSerial.println(i);
+      Serial.print("Button Pressed ");
+      Serial.println(i);
+      }
+  }
+
+  
+  
+  /*limitSwitch.loop();
   
   if(limitSwitch.isPressed())
   {
     stepper[0]->forceStop();
+    stepper[1]->forceStop();
     Serial.println("Stepper0 is homed at:");
     Serial.println(stepper[0]->getCurrentPosition());
     // Store the position and close the Preferences
@@ -157,14 +184,14 @@ void loop() {
   }
   if(limitSwitch.isReleased())
     Serial.println("The button is released");
-
+  */
   artnet.parse();  // check if artnet packet has come and execute callback function
   ElegantOTA.loop();
 
   if (millis() > lastHeartbeat + 1000){
       Serial.print(".");
       lastHeartbeat = millis();
-    }
+  }
 }
 
 
