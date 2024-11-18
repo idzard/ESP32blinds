@@ -178,4 +178,8 @@ void homeSteppers() {
   stepper[0]->setCurrentPosition(0);
   stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
   stepper[0]->runForward();
+
+  stepper[1]->setCurrentPosition(0);
+  stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  stepper[1]->runForward();
 }
