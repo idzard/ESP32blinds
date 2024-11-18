@@ -165,6 +165,7 @@ void startCalibration(){
   calibrating = true;
   calibratedStepper[0] = false;
   calibratedStepper[1] = false;
+  stepper[0]->setSpeedInHz(ste)
 
 }
 
@@ -186,27 +187,35 @@ void limitSwitchPressed(int buttonId){
     {
       //limitStartStepper0
       stepper[0]->stopMove();
-      if (calibrating){
-        finishCalibration();
+      if (calibrating && !calibratedStepper[0]){
+        finishCalibration(0);
       }  
     }
     case 1:
     {
       //limitEndStepper0
       stepper[0]->stopMove();
-      if (calibrating){
+      if (calibrating && !calibratedStepper[0]){
+        stepper[0]->setCurrentPosition(0);
         stepper[0]->runBackward();
       }  
     }
     case 2:
     {
-      //limitBottomStepper1
+      //limitStartStepper1
       stepper[1]->stopMove();
+      if (calibrating && !calibratedStepper[0]){
+        finishCalibration(0);
+      }  
     }
     case 3:
     {
-      //limitTopStepper1
+      //limitEndStepper1
       stepper[1]->stopMove();
+      if (calibrating && !calibratedStepper[1]){
+        stepper[1]->setCurrentPosition(0);
+        stepper[1]->runBackward();
+      }  
     }
 }
 
@@ -282,16 +291,19 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
     }
     Serial.println();
 
-    uint16_t m1Remapped = map(m1, 0, 65535, 0, m1Max);
-    uint16_t m2Remapped = map(m2, 0, 65535, 0, m2Max);
-    Serial.print("moving stepper0 to: ");
-    Serial.print(m1Remapped);
-    Serial.println();
-    Serial.print("moving stepper1 to: ");
-    Serial.print(m2Remapped);
-    Serial.println();
-    stepper[0]->moveTo(m1Remapped);
-    stepper[1]->moveTo(m2Remapped);
+    if (calibratedStepper[0]){
+      uint16_t remappedPosStepper0 = map(m1, 0, 65535, 0, maxPositionStepper[0]);
+      WebSerial.print("moving stepper0 to: ");
+      WebSerial.println(remappedPosStepper0);
+      stepper[0]->moveTo(remappedPosStepper0);
+    }
+    if (calibratedStepper[1]){
+      uint16_t remappedPosStepper1 = map(m1, 0, 65535, 0, maxPositionStepper[1]);
+      WebSerial.print("moving stepper1 to: ");
+      WebSerial.println(remappedPosStepper1);
+      stepper[1]->moveTo(remappedPosStepper1);
+    }
+    
 }
 
 
