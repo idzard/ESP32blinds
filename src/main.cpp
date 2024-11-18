@@ -4,15 +4,41 @@
 #include <ArtnetETH.h>
 #include <ESPmDNS.h>
 
-#define stepPinStepper 15
-#define dirPinStepper 14
-#define enablePinStepper 12
+#define stepPinStepper1 15
+#define dirPinStepper1 14
+
+#define stepPinStepper2 15
+#define dirPinStepper2 14
+
+#define DRIVER_MCPWM_PCNT 0
+
 
 long m1Max = 3200;
 long m2Max = 3200;
 
+struct stepper_config_s {
+  uint8_t step;
+  uint8_t direction;
+  uint32_t speed;
+  uint32_t acceleration;
+};
+
+const struct stepper_config_s stepper_config[2] = {
+    {
+      step : stepPinStepper1,
+      direction : dirPinStepper1,
+      speed: 30000,
+      acceleration: 20000
+    },
+    {
+      step : stepPinStepper2,
+      direction : dirPinStepper2,
+      speed: 30000,
+      acceleration: 20000
+    }};
+
 FastAccelStepperEngine engine = FastAccelStepperEngine();
-FastAccelStepper *stepper = NULL;
+FastAccelStepper *stepper[2];
 
 ezButton limitSwitch(4);  // create ezButton object that attach to ESP32 pin GPIO4
 
@@ -28,7 +54,7 @@ uint8_t universe2 = 2;  // 0 - 15
 
 unsigned long last = 0;
 
-void callback(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
+void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
     // will be called on incoming artnet data
     
     Serial.println("");
@@ -51,12 +77,7 @@ void callback(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata
     Serial.println("Art-Net data received:");
     Serial.print(remote.ip);
     Serial.print(":");
-    //Serial.print(remote.port);
-    //Serial.print(", universe = ");
-    //Serial.print(universe1);
-    //Serial.print(", size = ");
-    //Serial.print(size);
-    //Serial.print(") :");
+   
     for (size_t i = 0; i < 4; ++i) {
         Serial.print(data[i]);
         Serial.print(",");
@@ -69,8 +90,7 @@ void callback(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata
     Serial.print(m1Remapped);
     Serial.println();
     
-    stepper->moveTo(m1Remapped);
-
+    stepper[0]->moveTo(m1Remapped);
 
 }
 
@@ -83,40 +103,31 @@ void setup() {
   ETH.config(ip, gateway, subnet_mask);
 
   MDNS.begin("window1"); 
-  Serial.println("mDNS responder started");
   
-  Serial.println("ETH started");
-
   limitSwitch.setDebounceTime(50); // set debounce time to 50 milliseconds
 
   engine.init();
-  //driver type: 0 = DRIVER_MCPWM_PCNT 
-  stepper = engine.stepperConnectToPin(stepPinStepper, 0 );
-  
-  if (stepper) {
-    Serial.println("stepper loaded");
-    stepper->setDirectionPin(dirPinStepper);
-    stepper->setCurrentPosition(0);
-    
-    // If auto enable/disable need delays, just add (one or both):
-    //stepper->setDelayToEnable(50);
-    // stepper->setDelayToDisable(1000);
-
-    //stepper->setSpeedInUs(1000);  // the parameter is us/step !!!
-    stepper->setSpeedInHz(20000);
-    stepper->setAcceleration(20000);
-    //stepper->setJumpStart(100);
-    
+  for (uint8_t i = 0; i < 2; i++) {
+    FastAccelStepper *s = NULL;
+    const struct stepper_config_s *config = &stepper_config[i];
+    if (config->step != PIN_UNDEFINED) {
+      s = engine.stepperConnectToPin(config->step, DRIVER_MCPWM_PCNT);
+      if (s) {
+        s->setDirectionPin(config->direction);
+        s->setSpeedInHz(config->speed);
+        s->setAcceleration(config->acceleration);
+      }
+    }
+    stepper[i] = s;
   }
 
 
   artnet.begin();
-  artnet.subscribeArtDmxUniverse(net, subnet, universe1, callback);
-  Serial.print("Listening");
+  artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
 }
 
 void loop() {
-  limitSwitch.loop(); // MUST call the loop() function first
+  limitSwitch.loop();
   
 
   if(limitSwitch.isPressed())
