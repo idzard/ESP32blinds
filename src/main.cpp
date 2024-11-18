@@ -1,16 +1,16 @@
 #include <Arduino.h>
+#include <ArtnetETH.h>
+#include <ElegantOTA.h>
+#include <ESPAsyncWebServer.h>
+#include <ESPmDNS.h>
 #include <ezButton.h>
 #include <FastAccelStepper.h>
-#include <ArtnetETH.h>
-#include <ESPmDNS.h>
 #include <Preferences.h>
 
 #define stepPinStepper1 15
 #define dirPinStepper1 14
-
 #define stepPinStepper2 32
 #define dirPinStepper2 33
-
 #define DRIVER_MCPWM_PCNT 0
 
 long m1Max = 3200;
@@ -46,6 +46,8 @@ FastAccelStepper *stepper[2];
 ezButton limitSwitch(4);  // create ezButton object that attach to ESP32 pin GPIO4
 
 Preferences preferences;
+AsyncWebServer webserver(80);
+unsigned long ota_progress_millis = 0;
 
 const IPAddress ip(10, 0, 0, 25);
 const IPAddress gateway(10, 0, 0, 1);
@@ -62,6 +64,29 @@ unsigned long lastHeartbeat = 0;
 void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote);
 void homeSteppers();
 
+void onOTAStart() {
+  // Log when OTA has started
+  Serial.println("OTA update started!");
+  // <Add your own code here>
+}
+
+void onOTAProgress(size_t current, size_t final) {
+  // Log every 1 second
+  if (millis() - ota_progress_millis > 1000) {
+    ota_progress_millis = millis();
+    Serial.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+  }
+}
+
+void onOTAEnd(bool success) {
+  // Log when OTA has finished
+  if (success) {
+    Serial.println("OTA update finished successfully!");
+  } else {
+    Serial.println("There was an error during OTA update!");
+  }
+  // <Add your own code here>
+}
 
 void setup() {
   Serial.begin(115200);
@@ -104,6 +129,18 @@ void setup() {
     Serial.print("Stepper0 is already homed at:");
     Serial.println(preferences.getUInt("bottomStepper0", 0));
   }
+
+  // #####  start OTA webserver ######
+  webserver.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/plain", "Hi! This is Window 1.");
+  });
+
+  ElegantOTA.begin(&webserver);    // Start ElegantOTA
+  // ElegantOTA callbacks
+  ElegantOTA.onStart(onOTAStart);
+  ElegantOTA.onProgress(onOTAProgress);
+  ElegantOTA.onEnd(onOTAEnd);
+  webserver.begin();
 }
 
 void loop() {
@@ -122,7 +159,8 @@ void loop() {
     Serial.println("The button is released");
 
   artnet.parse();  // check if artnet packet has come and execute callback function
-  
+  ElegantOTA.loop();
+
   if (millis() > lastHeartbeat + 1000){
       Serial.print(".");
       lastHeartbeat = millis();
