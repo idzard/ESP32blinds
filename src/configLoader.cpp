@@ -43,7 +43,7 @@ bool loadConfiguration() {
     // later use.
 
     Serial.print("Loaded serverName: ");
-    Serial.println(ip);
+    Serial.println(DNSName);
     Serial.print("Loaded ipadress: ");
     Serial.println(ip);
     return true;
