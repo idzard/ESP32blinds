@@ -166,19 +166,17 @@ void setup() {
 
  
   
-  /*/* Attach webserial Message Callback 
-  WebSerial.onMessage([&](uint8_t *data, size_t len) {
-
-    WebSerial.println("Received Data...");
-    String message = "";
-    for(size_t i=0; i < len; i++){
-      message += char(data[i]);
-    }
-    WebSerial.println(message);
-    if (message == "calibrate"){
+  WebSerial.onMessage([](const std::string& msg) 
+  { 
+    Serial.println(msg.c_str()); 
+    WebSerial.printf("> received command: %s", msg.c_str());
+    if (msg == "calibrate"){
       startCalibration();
+      WebSerial.printf(">>> Starting calibration of %s ...", DNSName);
+    } else{
+      WebSerial.println("> error: unknown command");
     }
-  });*/
+  });
  
 
   WebSerial.begin(&webserver);
@@ -199,29 +197,33 @@ void startCalibration(){
   stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
   stepper[0]->runForward();
   
-  stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
-  stepper[1]->runForward();
+  //stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  //stepper[1]->runForward();
 }
 
 
 void finishCalibrateStepper(uint8_t stepperId){
   // we are now back at start position. 
-  // Current position will be 0 and steps traveled will be our max position.
-  stepsTraveledStepper[stepperId] = stepper[stepperId]->getCurrentPosition();
+  // Current position will be 0 and negative steps traveled will be our max position.
+  stepsTraveledStepper[stepperId] = -1 * stepper[stepperId]->getCurrentPosition();
   stepper[stepperId]->setCurrentPosition(0);
   maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
   calibratedStepper[stepperId] = true;
   
-  if (calibratedStepper[0] == true && calibratedStepper[1] == true){
+  //if (calibratedStepper[0] == true && calibratedStepper[1] == true){
+  if (calibratedStepper[0] == true){
     //all calibration done
     
     // Store the position and close the Preferences
-    preferences.putUInt("maxPositionStepper0",maxPositionStepper[0]);
-    preferences.putUInt("maxPositionStepper1",maxPositionStepper[1]);
+    preferences.putLong("maxStepper0",maxPositionStepper[0]);
+    
+    WebSerial.printf("saved maxStepper0: %li",maxPositionStepper[0]);
+    //preferences.putUInt("maxPositionStepper1",maxPositionStepper[1]);
 
     preferences.end();
     
     calibrating = false;
+    WebSerial.printf(">>> Calibration of %s done!", DNSName);
 
   }
 }
@@ -365,11 +367,11 @@ void loop() {
   }
   if(button2.isPressed()){
     Serial.println("button 2 is pressed");
-    onLimitSwitchPressed(3);
+    onLimitSwitchPressed(2);
   }
   if(button2.isReleased()){
     Serial.println("button 2 is released");
-    onLimitSwitchReleased(3);
+    onLimitSwitchReleased(2);
   }
   artnet.parse();  // check if artnet packet has come and execute callback function
   ElegantOTA.loop();
@@ -412,22 +414,22 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
     }
     Serial.println();
 
-    //if (calibratedStepper[0]){
+    if (calibratedStepper[0]){
       uint16_t remappedPosStepper0 = map(m1, 0, 65535, 0, 3000);
       WebSerial.print("moving stepper0 to: ");
       WebSerial.println(remappedPosStepper0);
       stepper[0]->moveTo(remappedPosStepper0);
-    //} else{
-    //  Serial.println("incoming artnet but stepper0 not calibrated");
-    //}
-    //if (calibratedStepper[1]){
+    } else{
+      Serial.println("incoming artnet but stepper0 not calibrated");
+    }
+    if (calibratedStepper[1]){
       uint16_t remappedPosStepper1 = map(m1, 0, 65535, 0, 3000);
       WebSerial.print("moving stepper1 to: ");
       WebSerial.println(remappedPosStepper1);
       stepper[1]->moveTo(remappedPosStepper1);
-    //} else{
-    //  Serial.println("incoming artnet but stepper1 not calibrated");
-    //}
+    } else{
+      Serial.println("incoming artnet but stepper1 not calibrated");
+    }
     
 }
 
