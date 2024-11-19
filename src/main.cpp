@@ -30,6 +30,7 @@ long m1Max = 3200;
 long m2Max = 3200;
 
 bool homing = false;
+bool homingDoneSinceStartup = false;
 bool homedStepper[2] = {false, false};
 bool steppersHomed = false;
 bool calibrating = false;
@@ -88,6 +89,7 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
 void startHomingSteppers();
 void startCalibration();
 void finishHomingStepper(uint8_t stepperId);
+void sendStatus();
 
 
 
@@ -117,19 +119,17 @@ void setup() {
   MDNS.begin(DNSName); 
   
   //check if we can load calibration from disk
-  int savedStepper0 = preferences.getUInt("maxPositionStepper0", 0);
+  uint32_t savedStepper0 = preferences.getLong("maxStepper0", 0);
   if (savedStepper0 != 0){
     maxPositionStepper[0] = savedStepper0;
     calibratedStepper[0] = true;
-    Serial.print("stepper0 calibration found:");
-    Serial.println(maxPositionStepper[0]);
+    WebSerial.printf("stepper0 calibration found: %li", maxPositionStepper[0]);
   }
-  int savedStepper1 = preferences.getUInt("maxPositionStepper1", 0);
+  uint32_t savedStepper1 = preferences.getLong("maxStepper1", 0);
   if (savedStepper1 != 0){
     maxPositionStepper[1] = savedStepper1;
     calibratedStepper[1] = true;
-    Serial.print("stepper1 calibration found:");
-    Serial.println(maxPositionStepper[1]);
+    WebSerial.printf("stepper1 calibration found: %li", maxPositionStepper[1]);
   }
   if (calibratedStepper[0] == true && calibratedStepper[1] == true){
       calibrated = true;
@@ -173,7 +173,13 @@ void setup() {
     if (msg == "calibrate"){
       startCalibration();
       WebSerial.printf(">>> Starting calibration of %s ...", DNSName);
-    } else{
+    } else if(msg == "status"){ 
+        sendStatus();
+    }
+    else if(msg == "home"){ 
+        startHomingSteppers();
+    }
+    else{
       WebSerial.println("> error: unknown command");
     }
   });
@@ -456,6 +462,17 @@ void finishHomingStepper(uint8_t stepperId){
   if (homedStepper[0] ==true && homedStepper[1] == true){
     steppersHomed = true;
     homing = false;
+    homingDoneSinceStartup = true;
   }
 }
  
+void sendStatus(){
+  WebSerial.println("");
+  WebSerial.printf("####### status %s ####", DNSName);
+  WebSerial.printf("calibrating:  %s", calibrating ? "true" : "false");
+  WebSerial.printf("calibratedStepper[0]: %s", calibratedStepper[0] ? "true" : "false"); 
+  WebSerial.printf("calibratedStepper[1]: %s", calibratedStepper[1] ? "true" : "false");
+  WebSerial.printf("calibrated:  %s", calibrated ? "true" : "false");
+  WebSerial.printf("homingDoneSinceStartup:  %s", homingDoneSinceStartup ? "true" : "false");
+  WebSerial.printf("##########################"); 
+}
