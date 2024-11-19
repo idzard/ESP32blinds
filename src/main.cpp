@@ -9,6 +9,7 @@
 #include <FastAccelStepper.h>
 #include <Preferences.h>
 #include <MycilaWebSerial.h>
+#include "configLoader.h"
 
 
 const byte buttonPins[] = {4,35}; 
@@ -70,9 +71,9 @@ Preferences preferences;
 AsyncWebServer webserver(80);
 
 
-const IPAddress ip(10, 0, 0, 25);
-const IPAddress gateway(10, 0, 0, 1);
-const IPAddress subnet_mask(255, 255, 255, 0);
+//const IPAddress ip(10, 0, 0, 25);
+///const IPAddress gateway(10, 0, 0, 1);
+//const IPAddress subnet_mask(255, 255, 255, 0);
 
 ArtnetReceiver artnet;
 uint16_t universe1 = 1; // 0 - 32767
@@ -91,11 +92,19 @@ void finishHomingStepper(uint8_t stepperId);
 
 
 void setup() {
+  Serial.begin(115200);
+  
+  if (!loadConfiguration()){
+    Serial.println("config loading fucked");
+  } else{
+    Serial.println("config loaded");
+  };
+  
   button1.setDebounceTime(50); // set debounce time to 50 milliseconds
   button2.setDebounceTime(50); // set debounce time to 50 milliseconds
 
 
-  Serial.begin(115200);
+  
 
   // Open Preferences with 'blinds' namespace. Each application module, library, etc
   // has to use a namespace name to prevent key name collisions. We will open storage in
@@ -105,7 +114,7 @@ void setup() {
   
   ETH.begin();
   ETH.config(ip, gateway, subnet_mask);
-  MDNS.begin("window1"); 
+  MDNS.begin(DNSName); 
   
   //check if we can load calibration from disk
   int savedStepper0 = preferences.getUInt("maxPositionStepper0", 0);
@@ -176,7 +185,7 @@ void setup() {
   webserver.begin();
   WebSerial.println("setup done");
 
-  startHomingSteppers();
+  //startHomingSteppers();
 }
 
 
