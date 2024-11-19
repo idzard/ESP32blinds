@@ -53,14 +53,14 @@ const struct stepper_config_s stepper_config[2] = {
     {
       step : stepPinStepper1,
       direction : dirPinStepper1,
-      speed: 7000,
+      speed: 2000,
       homingSpeed: 1000,
       acceleration: 20000
     },
     {
       step : stepPinStepper2,
       direction : dirPinStepper2,
-      speed: 7000,
+      speed: 2000,
       homingSpeed: 1000,
       acceleration: 20000
     }};
@@ -117,6 +117,10 @@ void setup() {
   ETH.begin();
   ETH.config(ip, gateway, subnet_mask);
   MDNS.begin(DNSName); 
+
+
+  
+
   
   //check if we can load calibration from disk
   uint32_t savedStepper0 = preferences.getLong("maxStepper0", 0);
@@ -131,7 +135,8 @@ void setup() {
     calibratedStepper[1] = true;
     WebSerial.printf("stepper1 calibration found: %li", maxPositionStepper[1]);
   }
-  if (calibratedStepper[0] == true && calibratedStepper[1] == true){
+  //if (calibratedStepper[0] == true && calibratedStepper[1] == true){
+  if (calibratedStepper[0] == true){
       calibrated = true;
   }
 
@@ -153,19 +158,13 @@ void setup() {
     stepper[i] = s;
   }
   
-  artnet.begin();
-  artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
-
-
-  // #####  start OTA webserver ######
+// #####  start OTA & WebSocket server ######
   webserver.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/plain", "Hi! This is Window 1.");
   });
 
   ElegantOTA.begin(&webserver);    // Start ElegantOTA
 
- 
-  
   WebSerial.onMessage([](const std::string& msg) 
   { 
     Serial.println(msg.c_str()); 
@@ -187,7 +186,13 @@ void setup() {
 
   WebSerial.begin(&webserver);
   webserver.begin();
-  WebSerial.println("setup done");
+  WebSerial.printf(">>>>>> %s is online. Searching for saved calibration...");
+
+  // #####  end OTA & WebSocket server ######
+
+
+  artnet.begin();
+  artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
 
   //startHomingSteppers();
 }
@@ -229,6 +234,10 @@ void finishCalibrateStepper(uint8_t stepperId){
     preferences.end();
     
     calibrating = false;
+    calibrated = true;
+    // we're ready to rumble: set steppers to fullspeed
+    stepper[0]->setSpeedInHz(stepper_config[0].speed);
+    stepper[1]->setSpeedInHz(stepper_config[1].speed);
     WebSerial.printf(">>> Calibration of %s done!", DNSName);
 
   }
@@ -392,49 +401,43 @@ void loop() {
 void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
     // will be called on incoming artnet data
     
-    Serial.println("");
-    Serial.print(data[0]);
-    Serial.print("-");
-    Serial.print(data[1]);
-    Serial.println("");
+    //Serial.println("");
+    //Serial.print(data[0]);
+    //Serial.print("-");
+    //Serial.print(data[1]);
+    //Serial.println("");
     
     //combine two bytes into a 16 bit value
     uint16_t m1 = (data[0] * 256) + data[1];
-    WebSerial.print("M1: ");
-    WebSerial.println(m1);
-    
+    //WebSerial.printf("M1: %hi", m1);
+  
 
     uint16_t m2 = (data[2] * 256) + data[3];
-    WebSerial.print("M2: ");
-    WebSerial.println(m2);
+    //WebSerial.printf("M2: %hi", m2);
 
-
-    
-    Serial.println("Art-Net data received:");
-    Serial.print(remote.ip);
-    Serial.print(":");
+    //Serial.println("Art-Net data received:");
+    //Serial.print(remote.ip);
+    //Serial.print(":");
    
-    for (size_t i = 0; i < 4; ++i) {
-        Serial.print(data[i]);
-        Serial.print(",");
-    }
-    Serial.println();
+    //for (size_t i = 0; i < 4; ++i) {
+    //    Serial.print(data[i]);
+    //    Serial.print(",");
+    //}
+    //Serial.println();
 
     if (calibratedStepper[0]){
-      uint16_t remappedPosStepper0 = map(m1, 0, 65535, 0, 3000);
-      WebSerial.print("moving stepper0 to: ");
-      WebSerial.println(remappedPosStepper0);
+      uint32_t remappedPosStepper0 = map(m1, 0, 65535, 0, maxPositionStepper[0]);
+      //WebSerial.printf(">>> moving stepper0 to: %li",remappedPosStepper0 );
       stepper[0]->moveTo(remappedPosStepper0);
     } else{
-      Serial.println("incoming artnet but stepper0 not calibrated");
+      //WebSerial.println("> incoming artnet but stepper0 not calibrated");
     }
     if (calibratedStepper[1]){
-      uint16_t remappedPosStepper1 = map(m1, 0, 65535, 0, 3000);
-      WebSerial.print("moving stepper1 to: ");
-      WebSerial.println(remappedPosStepper1);
+      uint32_t remappedPosStepper1 = map(m1, 0, 65535, 0, maxPositionStepper[1]);
+      //WebSerial.printf(">>> moving stepper0 to: %li",remappedPosStepper1 );
       stepper[1]->moveTo(remappedPosStepper1);
     } else{
-      Serial.println("incoming artnet but stepper1 not calibrated");
+      //WebSerial.println("> incoming artnet but stepper1 not calibrated");
     }
     
 }
@@ -448,21 +451,22 @@ void startHomingSteppers() {
   stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
   stepper[0]->runBackward();
 
-  stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
-  stepper[1]->runBackward();
-  Serial.println("start homing");
+  //stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  //stepper[1]->runBackward();
+  WebSerial.println(">>> starting homing...");
 }
   
 void finishHomingStepper(uint8_t stepperId){
   stepper[stepperId]->stopMove();
   stepper[stepperId]->setCurrentPosition(0);
   homedStepper[stepperId] = true;
-  Serial.print("done homing stepper:");
-  Serial.println(stepperId);
-  if (homedStepper[0] ==true && homedStepper[1] == true){
+  WebSerial.printf(">>> Done homing stepper: %i", stepperId);
+  //if (homedStepper[0] ==true && homedStepper[1] == true){
+  if (homedStepper[0] ==true){
     steppersHomed = true;
     homing = false;
     homingDoneSinceStartup = true;
+    WebSerial.printf(">>> Homing complete!");
   }
 }
  
