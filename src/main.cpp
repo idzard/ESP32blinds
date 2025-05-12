@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ArtnetETH.h>
 #include <ElegantOTA.h>
+#include <ArduinoOTA.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <ezButton.h>
@@ -10,6 +11,8 @@
 #include <Preferences.h>
 #include <MycilaWebSerial.h>
 #include "configLoader.h"
+
+//
 
 
 const byte buttonPins[] = {4,35}; 
@@ -119,7 +122,43 @@ void setup() {
   MDNS.begin(DNSName); 
 
 
-  
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH) {
+        type = "sketch";
+      } else {  // U_SPIFFS
+        type = "filesystem";
+      }
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) {
+        Serial.println("Auth Failed");
+      } else if (error == OTA_BEGIN_ERROR) {
+        Serial.println("Begin Failed");
+      } else if (error == OTA_CONNECT_ERROR) {
+        Serial.println("Connect Failed");
+      } else if (error == OTA_RECEIVE_ERROR) {
+        Serial.println("Receive Failed");
+      } else if (error == OTA_END_ERROR) {
+        Serial.println("End Failed");
+      }
+    });
+
+  ArduinoOTA.begin(); 
+
+
+
 
   
   //check if we can load calibration from disk
@@ -150,7 +189,18 @@ void setup() {
     if (config->step != PIN_UNDEFINED) {
       s = engine.stepperConnectToPin(config->step, DRIVER_MCPWM_PCNT);
       if (s) {
-        s->setDirectionPin(config->direction);
+        // Determine the correct reverse setting using if-else
+        bool reverse;
+        if (i == 0) {
+          reverse = reverseStepper0; // Use setting for stepper 0
+        } else {
+          reverse = reverseStepper1; // Use setting for stepper 1
+        }
+
+        // Determine the activeLow value for the library function
+        bool activeLow = !reverse; // Invert the config flag (true reversed -> false activeLow)
+
+        s->setDirectionPin(config->direction, activeLow); // Pass pin AND activeLow setting
         s->setSpeedInHz(config->speed);
         s->setAcceleration(config->acceleration);
       }
@@ -202,7 +252,8 @@ void setup() {
   artnet.begin();
   artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
 
-  //startHomingSteppers();
+  
+  startHomingSteppers(true);
 }
 
 
@@ -254,6 +305,7 @@ void finishCalibrateStepper(uint8_t stepperId){
 
 
 void onLimitSwitchPressed(int buttonId){
+  WebSerial.printf("Button %d pressed", buttonId);
   Serial.println(buttonId);
   switch (buttonId) {
     case 1:
@@ -396,6 +448,7 @@ void loop() {
     Serial.println("button 2 is released");
     onLimitSwitchReleased(2);
   }
+  ArduinoOTA.handle();
   artnet.parse();  // check if artnet packet has come and execute callback function
   ElegantOTA.loop();
 
