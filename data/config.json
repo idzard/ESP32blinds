@@ -3,6 +3,6 @@
   "ipadress": "10.0.0.25",
   "gateway":  "10.0.0.1",
   "subnet":   "255.255.255.0",
-  "reverseStepper0": true,
+  "reverseStepper0": false,
   "reverseStepper1": false
 }

@@ -267,8 +267,8 @@ void startCalibration(){
   stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
   stepper[0]->runBackward();
   
-  stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
-  stepper[1]->runForward();
+  //stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  //stepper[1]->runForward();
 }
 
 
@@ -528,8 +528,8 @@ void startHomingSteppers(bool force=false) {
   stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
   stepper[0]->runForward();
 
-  stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
-  stepper[1]->runBackward();
+  //stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  //stepper[1]->runBackward();
   WebSerial.println(">>> starting homing echt...");
   
 }
