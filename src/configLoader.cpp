@@ -44,16 +44,6 @@ bool loadConfiguration() {
     reverseStepper0 = doc["reverseStepper0"] | false;
     reverseStepper1 = doc["reverseStepper1"] | false;
 
-    // Real world application would store these values in some variables for
-    // later use.
 
-    Serial.print("Loaded serverName: ");
-    Serial.println(DNSName);
-    Serial.print("Loaded ipadress: ");
-    Serial.println(ip);
-    Serial.print("Stepper0 direction reversed: ");
-    Serial.println(reverseStepper0 ? "true" : "false");
-    Serial.print("Stepper1 direction reversed: ");
-    Serial.println(reverseStepper1 ? "true" : "false");
     return true;
 }
