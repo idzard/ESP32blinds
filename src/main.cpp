@@ -10,6 +10,7 @@
 #include "configLoader.h"
 #include "stepper_interface.h"
 #include "blinds_core.h"
+#include "webui.h"
 
 WebSerial webSerial;
 
@@ -20,6 +21,16 @@ ezButton button2(35);
 long m1Max = 3200;
 long m2Max = 3200;
 
+// these fallback values are used if no saved preferences are found
+uint32_t defaultStepperSpeed = 30000;
+uint32_t defaultStepperAcceleration = 80000;
+uint32_t defaultStepperHomingSpeed = 5000;
+uint32_t defaultCalibrationSpeed = 15000;
+uint32_t defaultCalibrationAcceleration = 800000;
+
+uint32_t stepperSpeed = defaultStepperSpeed;
+uint32_t stepperAcceleration = defaultStepperAcceleration;
+
 bool homing = false;
 bool homingDoneSinceStartup = false;
 bool homedStepper[2] = {false, false};
@@ -28,33 +39,32 @@ bool calibrating = false;
 bool calibrated = false;
 bool calibratedStepper[2] = {false, false};
 
-uint32_t stepsTraveledStepper[2];
+long stepsTraveledStepper[2];
 uint32_t minPositionStepper[2] = {0,0};
-uint32_t maxPositionStepper[2];
+long maxPositionStepper[2];
 
 // Using the stepper_config_s struct defined in stepper_interface.h
 const struct stepper_config_s stepper_config[2] = {
     {
       step : stepPinStepper1,
       direction : dirPinStepper1,
-      speed: 10000,
-      homingSpeed: 5000,
-      acceleration: 80000
     },
     {
       step : stepPinStepper2,
       direction : dirPinStepper2,
-      speed: 10000,
-      homingSpeed: 5000,
-      acceleration: 80000
     }};
+
+
+int statusLabelId;
+int graphId;
+int millisLabelId;
+int testSwitchId;
+int oldTime = 0;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper[2];
 
 Preferences preferences;
-AsyncWebServer webserver(80);
-
 
 ArtnetReceiver artnet;
 uint16_t universe1 = 1; // 0 - 32767
@@ -63,6 +73,9 @@ uint8_t subnet = 0;     // 0 - 15
 uint8_t universe2 = 2;  // 0 - 15
 
 unsigned long lastHeartbeat = 0;
+
+
+
 
 void setup() {
   Serial.begin(115200);
@@ -129,7 +142,21 @@ void setup() {
 
 
   
-  //check if we can load calibration from disk
+  //check if we can load stored stepper values
+  
+  uint32_t savedSpeed = preferences.getLong("speed", -1);
+  if (savedSpeed != -1){
+    stepperSpeed = savedSpeed;
+
+  }
+  uint32_t savedAcceleration = preferences.getLong("acceleration", -1);
+  if (savedAcceleration != -1){
+    stepperAcceleration = savedAcceleration;
+
+  }
+
+
+
   uint32_t savedStepper0 = preferences.getLong("maxStepper0", 0);
   if (savedStepper0 != 0){
     maxPositionStepper[0] = savedStepper0;
@@ -169,8 +196,8 @@ void setup() {
         bool activeLow = !reverse; // Invert the config flag (true reversed -> false activeLow)
 
         s->setDirectionPin(config->direction, activeLow); // Pass pin AND activeLow setting
-        s->setSpeedInHz(config->speed);
-        s->setAcceleration(config->acceleration);
+        s->setSpeedInHz(stepperSpeed);
+        s->setAcceleration(stepperAcceleration);
       }
     }
     stepper[i] = s;
@@ -204,10 +231,20 @@ void setup() {
   });
  
 
-  webSerial.begin(&webserver);
-  webserver.begin();
+
   webSerial.printf(">>>>>> %s is online. Searching for saved calibration...", DNSName);
 
+
+  setupUI();
+  ESPUI.setVerbosity(Verbosity::VerboseJSON);
+
+  // Create a static buffer for the webpage title
+  static char titleBuffer[64];
+  strcpy(titleBuffer, DNSName);
+  strcat(titleBuffer, " Control");
+  ESPUI.begin(titleBuffer);
+  webSerial.begin(ESPUI.WebServer()); // Initialize WebSerial with ESPUI's server
+  
   // #####  end OTA & WebSocket server ######
 
 
@@ -413,39 +450,25 @@ void loop() {
   ArduinoOTA.handle();
   artnet.parse();  // check if artnet packet has come and execute callback function
 
-  if (millis() > lastHeartbeat + 1000){
-    //webSerial.print(".");
-      lastHeartbeat = millis();
-  }
+  if (millis() - oldTime > 100)
+    {
+        ESPUI.print(millisLabelId, String(millis()));
+
+
+        oldTime = millis();
+    }
 }
 
 
 void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
     // will be called on incoming artnet data
     
-    //Serial.println("");
-    //Serial.print(data[0]);
-    //Serial.print("-");
-    //Serial.print(data[1]);
-    //Serial.println("");
-    
     //combine two bytes into a 16 bit value
     uint16_t m1 = (data[0] * 256) + data[1];
     //webSerial.print("M1: %hi", m1);
   
-
     uint16_t m2 = (data[2] * 256) + data[3];
     //webSerial.print("M2: %hi", m2);
-
-    //Serial.println("Art-Net data received:");
-    //Serial.print(remote.ip);
-    //Serial.print(":");
-   
-    //for (size_t i = 0; i < 4; ++i) {
-    //    Serial.print(data[i]);
-    //    Serial.print(",");
-    //}
-    //Serial.println();
 
     if (calibratedStepper[0]){
       uint32_t remappedPosStepper0 = map(m1, 0, 65535, 0, maxPositionStepper[0]);

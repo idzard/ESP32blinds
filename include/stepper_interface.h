@@ -24,6 +24,9 @@ struct stepper_config_s {
 extern long m1Max; // Max position for motor 1 (derived from calibration)
 extern long m2Max; // Max position for motor 2 (derived from calibration)
 
+extern uint32_t stepperSpeed;
+extern uint32_t stepperAcceleration;
+
 extern bool homing;
 extern bool homingDoneSinceStartup;
 extern bool homedStepper[2];
@@ -32,9 +35,9 @@ extern bool calibrating;
 extern bool calibrated;
 extern bool calibratedStepper[2];
 
-extern uint32_t stepsTraveledStepper[2];
+extern long stepsTraveledStepper[2];
 extern uint32_t minPositionStepper[2];
-extern uint32_t maxPositionStepper[2];
+extern long maxPositionStepper[2];
 
 extern const struct stepper_config_s stepper_config[2];
 extern FastAccelStepper *stepper[2];

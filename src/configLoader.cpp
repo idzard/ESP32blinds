@@ -27,7 +27,10 @@ bool loadConfiguration() {
         return false;
     }
 
-    DNSName = doc["mdnsName"];
+    // Make a persistent copy of the string
+    static char mdnsNameBuffer[32]; // Buffer to store the mdnsName
+    strlcpy(mdnsNameBuffer, doc["mdnsName"] | "window1", sizeof(mdnsNameBuffer));
+    DNSName = mdnsNameBuffer;
     const char* ch_configIPaddress = doc["ipadress"];
     const char* ch_configGateway = doc["gateway"];
     const char* ch_configSubnet = doc["subnet"];
