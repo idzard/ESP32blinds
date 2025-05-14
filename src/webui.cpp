@@ -1,7 +1,9 @@
+#include "blinds_core.h"
 #include "webui.h"
 #include <Arduino.h> // For Serial
 #include <MycilaWebSerial.h> // For webSerial
 #include <Preferences.h>
+
 
 // Declare webSerial as extern if it's defined in main.cpp
 extern WebSerial webSerial;
@@ -10,6 +12,10 @@ extern Preferences preferences;
 // Declare stepperAcceleration as extern since it's defined elsewhere
 extern uint32_t stepperSpeed;
 extern uint32_t stepperAcceleration;
+
+// Declare functions from main.cpp as extern
+extern void runForward();
+extern void stopMotors();
 
 
 //UI handles
@@ -42,8 +48,21 @@ void speedApplyCallback(Control* sender, int type)
     case B_UP:
         // Handle button release
         uint32_t newSpeed = ESPUI.getControl(speedControl)->value.toInt();
+        setSteppersSpeed(newSpeed);
+        break;
+    }
+}
+
+void speedSaveCallback(Control* sender, int type)
+{
+    switch (type)
+    {
+    
+    case B_UP:
+        // Handle button release
+        uint32_t newSpeed = ESPUI.getControl(speedControl)->value.toInt();
         webSerial.printf("Speed value is  %u \n", newSpeed);
-        stepperSpeed = newSpeed;
+        setSteppersSpeed(newSpeed);
         preferences.begin("blinds", false);
         preferences.putLong("speed", stepperSpeed);
         preferences.end();
@@ -60,7 +79,21 @@ void accelerationApplyCallback(Control* sender, int type)
         // Handle button release
         uint32_t newAcceleration = ESPUI.getControl(accelControl)->value.toInt();
         webSerial.printf("Acceleration value is  %u \n", newAcceleration);
-        stepperAcceleration = newAcceleration;
+        setSteppersAcceleration(newAcceleration);
+        break;
+    }
+}
+
+void accelerationSaveCallback(Control* sender, int type)
+{
+    switch (type)
+    {
+    
+    case B_UP:
+        // Handle button release
+        uint32_t newAcceleration = ESPUI.getControl(accelControl)->value.toInt();
+        webSerial.printf("Acceleration value is  %u \n", newAcceleration);
+        setSteppersAcceleration(newAcceleration);
         preferences.begin("blinds", false);
         preferences.putLong("acceleration", stepperAcceleration);
         preferences.end();
@@ -68,7 +101,13 @@ void accelerationApplyCallback(Control* sender, int type)
     }
 }
 
+void forwardCallback(Control* sender, int type) {
+    runForward();
+}
 
+void stopCallback(Control* sender, int type) {
+    stopMotors();
+}
 
 // Add more callback function implementations here as needed
 
@@ -79,7 +118,7 @@ void setupUI() {
     String clearLabelStyle = "background-color: unset; width: 100%;";
     String switcherLabelStyle = "width: 60px; margin-left: .3rem; margin-right: .3rem; background-color: unset;";
 
-    auto grouptab = ESPUI.addControl(Tab, "", "Grouped controls");
+    auto grouptab = ESPUI.addControl(Tab, "", "Status");
     auto vertgroupslider = ESPUI.addControl(Slider, "Vertical Slider Group", "0", Dark, grouptab, generalCallback);
 	ESPUI.setVertical(vertgroupslider);
 	ESPUI.setVertical(ESPUI.addControl(Slider, "", "100", None, vertgroupslider, generalCallback));
@@ -92,12 +131,15 @@ void setupUI() {
     speedControl = ESPUI.addControl(Number, "Speed", String(stepperSpeed), ControlColor::Dark, settingstab , numberCallback);
     ESPUI.addControl(Min, "", "0", None, speedControl);
     ESPUI.addControl(Max, "", "30000", None, speedControl);
-    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, speedControl, speedApplyCallback);
+    ESPUI.addControl(Button, "Apply", "Apply", ControlColor::Dark, speedControl, speedApplyCallback);
+    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, speedControl, speedSaveCallback);
 
     accelControl = ESPUI.addControl(Number, "Acceleration", String(stepperAcceleration), ControlColor::Dark, settingstab , numberCallback);
     ESPUI.addControl(Min, "", "0", None, accelControl);
     ESPUI.addControl(Max, "", "800000", None, accelControl);
-    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, accelControl, accelerationApplyCallback);
+    ESPUI.addControl(Button, "Apply", "Apply", ControlColor::Dark, accelControl, accelerationApplyCallback);
+    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, accelControl, accelerationSaveCallback);
 
-
+    ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, settingstab, forwardCallback);
+    ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, settingstab, stopCallback);
 }

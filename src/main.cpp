@@ -543,5 +543,24 @@ void sendStatus(){
   webSerial.printf("calibratedStepper[1]: %s", calibratedStepper[1] ? "true" : "false");
   webSerial.printf("calibrated:  %s", calibrated ? "true" : "false");
   webSerial.printf("homingDoneSinceStartup:  %s", homingDoneSinceStartup ? "true" : "false");
-  webSerial.print("##########################"); 
+  webSerial.print("##########################");
+}
+
+void setSteppersAcceleration(uint32_t acceleration) {
+  stepperAcceleration = acceleration;
+  stepper[0]->setAcceleration(stepperAcceleration);
+  stepper[1]->setAcceleration(stepperAcceleration);
+}
+void setSteppersSpeed(uint32_t speed) {
+  stepperSpeed = speed;
+  stepper[0]->setSpeedInHz(stepperSpeed);
+  stepper[1]->setSpeedInHz(stepperSpeed);
+}
+
+void runForward() {
+  stepper[0]->runForward();
+}
+
+void stopMotors() {
+  stepper[0]->stopMove();
 }

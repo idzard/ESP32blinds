@@ -30,5 +30,7 @@ void onLimitSwitchReleased(int buttonId);
 void sendStatus();
 void testHigh();
 void testLow();
+void setSteppersAcceleration(uint32_t acceleration);
+void setSteppersSpeed(uint32_t speed);
 
 #endif // BLINDS_CORE_H
