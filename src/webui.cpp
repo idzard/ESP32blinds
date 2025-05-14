@@ -5,17 +5,21 @@
 #include <Preferences.h>
 
 
-// Declare webSerial as extern if it's defined in main.cpp
+
 extern WebSerial webSerial;
-// Declare Preferences object as extern if it's defined elsewhere
+
 extern Preferences preferences;
-// Declare stepperAcceleration as extern since it's defined elsewhere
+
 extern uint32_t stepperSpeed;
 extern uint32_t stepperAcceleration;
+extern bool calibratedStepper[2];
+
 
 // Declare functions from main.cpp as extern
 extern void runForward();
 extern void stopMotors();
+extern void startCalibration();
+extern void startHomingSteppers(bool force);
 
 
 //UI handles
@@ -109,6 +113,15 @@ void stopCallback(Control* sender, int type) {
     stopMotors();
 }
 
+void calibrateCallback(Control* sender, int type) {
+    startCalibration();
+}
+
+void homingCallback(Control* sender, int type) {
+    startHomingSteppers(true);
+}
+
+
 // Add more callback function implementations here as needed
 
 
@@ -118,8 +131,9 @@ void setupUI() {
     String clearLabelStyle = "background-color: unset; width: 100%;";
     String switcherLabelStyle = "width: 60px; margin-left: .3rem; margin-right: .3rem; background-color: unset;";
 
-    auto grouptab = ESPUI.addControl(Tab, "", "Status");
-    auto vertgroupslider = ESPUI.addControl(Slider, "Vertical Slider Group", "0", Dark, grouptab, generalCallback);
+    // --------------------- Control tab ---------------------
+    auto controlstab = ESPUI.addControl(Tab, "", "Control");
+    auto vertgroupslider = ESPUI.addControl(Slider, "Positions", "0", Dark, controlstab, generalCallback);
 	ESPUI.setVertical(vertgroupslider);
 	ESPUI.setVertical(ESPUI.addControl(Slider, "", "100", None, vertgroupslider, generalCallback));
 	
@@ -127,6 +141,14 @@ void setupUI() {
 	ESPUI.setElementStyle(ESPUI.addControl(Label, "", "B", None, vertgroupslider), switcherLabelStyle);
 	ESPUI.setElementStyle(ESPUI.addControl(Label, "", "T", None, vertgroupslider), switcherLabelStyle);
 
+    
+    auto calibratedStatus = ESPUI.addControl(Label, "Calibration", "Not calibrated yet!", Dark, controlstab);
+    ESPUI.updateLabel(calibratedStatus, calibratedStepper[0] ? "Frame is calibrated" : "Not calibrated yet!");
+    ESPUI.addControl(Button, "Start calibration", "Start calibration", ControlColor::Dark, calibratedStatus, calibrateCallback);
+
+    ESPUI.addControl(Button, "Start homing", "Start homing", ControlColor::Dark, controlstab, homingCallback);
+
+    // --------------------- Settings tab ---------------------
     auto settingstab = ESPUI.addControl(Tab, "", "Settings");
     speedControl = ESPUI.addControl(Number, "Speed", String(stepperSpeed), ControlColor::Dark, settingstab , numberCallback);
     ESPUI.addControl(Min, "", "0", None, speedControl);
