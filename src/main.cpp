@@ -162,20 +162,18 @@ void setup() {
   engine.init();
   
   //stepper0
-  FastAccelStepper *s = NULL;
-  s = engine.stepperConnectToPin(stepPinStepper0, DRIVER_MCPWM_PCNT);
+  FastAccelStepper *s = engine.stepperConnectToPin(stepPinStepper0, DRIVER_MCPWM_PCNT);
   bool activeLow = !reverseStepper0; 
   s->setDirectionPin(dirPinStepper0, activeLow); // Pass pin AND activeLow setting
   s->setSpeedInHz(stepper_config.speed);
   s->setAcceleration(stepper_config.acceleration);
   stepper[0] = s;
 
+
   //stepper1
-  FastAccelStepper *s = NULL;
   s = engine.stepperConnectToPin(stepPinStepper1, DRIVER_MCPWM_PCNT);
-  bool activeLow = !reverseStepper1; 
+  activeLow = !reverseStepper1; 
   s->setDirectionPin(dirPinStepper1, activeLow); // Pass pin AND activeLow setting
-  s->setSpeedInHz(stepper_config.speed);
   s->setAcceleration(stepper_config.acceleration);
   stepper[1] = s;
 
@@ -242,10 +240,11 @@ void startCalibration(){
   calibratedStepper[0] = false;
   calibratedStepper[1] = false;
 
-  stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
+  stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
+  stepper[0]->setAcceleration(stepper_config.calibrationAcceleration);
   stepper[0]->runForward();
   
-  //stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  //stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
   //stepper[1]->runForward();
 }
 
@@ -292,14 +291,14 @@ void onLimitSwitchPressed(int buttonId){
       stepper[0]->stopMove();
       webSerial.println("limitStartStepper0 pressed");
       if (homing){
-        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
         stepper[0]->runForward();
         Serial.println("slowly homing forward");
       }
       
       
       if (calibrating && !calibratedStepper[0]){
-        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
         stepper[0]->runForward();
       }
       break;  
@@ -310,7 +309,7 @@ void onLimitSwitchPressed(int buttonId){
       stepper[0]->stopMove();
       webSerial.println("limitEndStepper0 pressed");
       if (calibrating && !calibratedStepper[0]){
-        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
         stepper[0]->runBackward();
       }
       break;  
@@ -321,13 +320,13 @@ void onLimitSwitchPressed(int buttonId){
       stepper[1]->stopMove();
       
       if (homing){
-        stepper[1]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
         stepper[1]->runBackward();
         Serial.println("limitStartStepper1 pressed. slow homing forward");
       }
       
       if (calibrating && !calibratedStepper[1]){
-        stepper[1]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
         stepper[1]->runBackward();
       }
       break;  
@@ -338,7 +337,7 @@ void onLimitSwitchPressed(int buttonId){
       stepper[1]->stopMove();
       Serial.println("limitEndStepper1 pressed");
       if (calibrating && !calibratedStepper[1]){
-        stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed/10);
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
         stepper[0]->runBackward();
          
       }
@@ -393,7 +392,7 @@ void onLimitSwitchReleased(int buttonId){
       Serial.println("limitEndStepper1 released");
       if (calibrating && !calibratedStepper[1]){
         stepper[1]->setCurrentPosition(0);
-        stepper[1]->setSpeedInHz(stepper_config[0].homingSpeed);
+        stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
         stepper[1]->runBackward();
       }
       break;  
@@ -491,10 +490,10 @@ void startHomingSteppers(bool force) {
     return;
   }
   homing = true;
-  stepper[0]->setSpeedInHz(stepper_config[0].homingSpeed);
+  stepper[0]->setSpeedInHz(stepper_config.homingSpeed);
   stepper[0]->runBackward();
 
-  //stepper[1]->setSpeedInHz(stepper_config[1].homingSpeed);
+  //stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
   //stepper[1]->runBackward();
   webSerial.print(">>> starting homing ...");
 }
@@ -510,8 +509,8 @@ void finishHomingStepper(uint8_t stepperId){
     homing = false;
     homingDoneSinceStartup = true;
     webSerial.print(">>> Homing complete!");
-    stepper[0]->setSpeedInHz(stepper_config[0].speed);
-    stepper[1]->setSpeedInHz(stepper_config[1].speed);
+    stepper[0]->setSpeedInHz(stepper_config.speed);
+    stepper[1]->setSpeedInHz(stepper_config.speed);
   }
 }
  
@@ -526,16 +525,15 @@ void sendStatus(){
   webSerial.print("##########################");
 }
 
-void setSteppersAcceleration(uint32_t acceleration) {
-  stepper_config[0].acceleration = acceleration;
-  stepper_config[1].acceleration = acceleration;
-  
+void saveSteppersAcceleration(uint32_t acceleration) {
+  stepper_config.acceleration = acceleration;
+  preferences.putLong("acceleration", acceleration);
   stepper[0]->setAcceleration(acceleration);
   stepper[1]->setAcceleration(acceleration);
 }
-void setSteppersSpeed(uint32_t speed) {
-  stepper_config[0].speed = speed;
-  stepper_config[1].speed = speed;
+void saveSteppersSpeed(uint32_t speed) {
+  stepper_config.speed = speed;
+  preferences.putLong("speed", speed);
   stepper[0]->setSpeedInHz(speed);
   stepper[1]->setSpeedInHz(speed);
 }
