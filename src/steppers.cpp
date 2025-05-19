@@ -8,6 +8,9 @@
 extern Preferences preferences;
 extern WebSerial webSerial;
 
+// Add definitions for these arrays
+bool currentlyHomingStepper[2] = {false, false};
+bool sinceStartupHomedStepper[2] = {false, false};
 
 struct stepper_config_s stepper_config;
 
@@ -84,30 +87,27 @@ void startCalibration(){
 void finishCalibrateStepper(uint8_t stepperId){
   // we are now back at start position.
   // Current position will be 0 and negative steps traveled will be our max position.
-  stepsTraveledStepper[stepperId] = -1 * stepper[stepperId]->getCurrentPosition();
+  stepsTraveledStepper[stepperId] = stepper[stepperId]->getCurrentPosition();
   stepper[stepperId]->setCurrentPosition(0);
   maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
   calibratedStepper[stepperId] = true;
-  
-  //if (calibratedStepper[0] == true && calibratedStepper[1] == true){
-  if (calibratedStepper[0] == true){
-    //all calibration done
-    
-    // Store the position and close the Preferences
-    preferences.putLong("maxStepper0",maxPositionStepper[0]);
-    
-    webSerial.printf("saved maxStepper0: %li",maxPositionStepper[0]);
-    //preferences.putUInt("maxPositionStepper1",maxPositionStepper[1]);
 
-    preferences.end();
-    
-    calibrating = false;
-    calibrated = true;
-    // we're ready to rumble: set steppers to fullspeed
-    stepper[0]->setSpeedInHz(stepper_config.speed);
-    stepper[1]->setSpeedInHz(stepper_config.speed);
-    webSerial.printf(">>> Calibration of %s done!", DNSName);
+  //also we're homed now
+  homedStepper[stepperId] = true;
+  currentlyHomingStepper[stepperId] = false;
+  sinceStartupHomedStepper[stepperId] = true;
+  
+  if (stepperId == 0){
+    preferences.putLong("maxStepper0",maxPositionStepper[0]);
+    webSerial.printf("saved maxStepper0: %li",maxPositionStepper[0]);
   }
+  if (stepperId == 1){
+    preferences.putLong("maxStepper1",maxPositionStepper[1]);
+    webSerial.printf("saved maxStepper1: %li",maxPositionStepper[1]);
+  }
+
+  // we're ready to rumble: set stepper to fullspeed
+  stepper[stepperId]->setSpeedInHz(stepper_config.speed);
 }
 
 void startHomingSteppers(bool force) {
@@ -213,7 +213,6 @@ void onLimitSwitchReleased(int buttonId){
     {
       //limitStartStepper0
       stepper[0]->stopMove();
-      Serial.println("limitStartStepper0 released");
       if (currentlyHomingStepper[0]){
         finishHomingStepper(0);
       }
@@ -262,24 +261,26 @@ void onLimitSwitchReleased(int buttonId){
   }
 }
 
-void moveScreenSafelyFromNormalizedPosition(uint8_t stepperId, float value){
+void moveScreenSafelyFromNormalizedPosition(uint8_t stepperId, float normalizedPosition) {
   if (calibratedStepper[stepperId] == false){
-    webSerial.println(">>> stepper not calibrated, OSC positions ignored");
+    webSerial.println(">>> stepper not yet calibrated, OSC positions ignored");
+    return;
+  }
+  if (sinceStartupHomedStepper[stepperId] == false){
+    webSerial.println(">>> stepper not yet homed, OSC positions ignored");
     return;
   } 
-  else {
-    if (value < 0.0 || value > 1.0){
-      webSerial.println(">>> invalid OSC position, must be between 0 and 1");
-      return;
-    } 
+  if (normalizedPosition < 0.0 || normalizedPosition > 1.0){
+    webSerial.println(">>> invalid OSC position, must be between 0 and 1");
+    return;
   }
-  webSerial.printf(">>> input value: %f", value);
+  webSerial.printf(">>> input value: %f", normalizedPosition);
   // Safety margin
   long safetyMargin = stepper_config.safetyMargin;
   webSerial.printf(">>> safety margin: %li", safetyMargin);
   long safetyMinimum = 0 + safetyMargin;
   long safetyMaximum = maxPositionStepper[stepperId] - safetyMargin;
-  long remappedValue = (long)(value * (float)(safetyMaximum - safetyMinimum) + safetyMinimum);
+  long remappedValue = (long)(normalizedPosition * (float)(safetyMaximum - safetyMinimum) + safetyMinimum);
   webSerial.printf(">>> remapped value: %li", remappedValue);
   stepper[stepperId]->moveTo(remappedValue);
 }
