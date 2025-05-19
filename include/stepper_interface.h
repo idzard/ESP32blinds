@@ -60,5 +60,8 @@ void startHomingSteppers(bool force); // No default argument
 void startCalibration();
 void finishHomingStepper(uint8_t stepperId);
 void finishCalibrateStepper(uint8_t stepperId);
+void loadStoredStepperValues(); // Function to load stored stepper values from preferences
+void initializeSteppers(); // Function to initialize stepper motors
+void setupWebSerialCommands(); // Function to setup webSerial message handler
 
 #endif // STEPPER_INTERFACE_H

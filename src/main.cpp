@@ -11,6 +11,7 @@
 #include "stepper_interface.h"
 #include "blinds_core.h"
 #include "webui.h"
+#include "ota.h"
 
 WebSerial webSerial;
 
@@ -85,102 +86,10 @@ void setup() {
   ETH.begin();
   ETH.config(ip, gateway, subnet_mask);
   MDNS.begin(DNSName); 
+  setupOTA();
 
-
-  ArduinoOTA
-    .onStart([]() {
-      String type;
-      if (ArduinoOTA.getCommand() == U_FLASH) {
-        type = "sketch";
-      } else {  // U_SPIFFS
-        type = "filesystem";
-      }
-
-      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-      Serial.println("Start updating " + type);
-    })
-    .onEnd([]() {
-      Serial.println("\nEnd");
-    })
-    .onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-    })
-    .onError([](ota_error_t error) {
-      Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) {
-        Serial.println("Auth Failed");
-      } else if (error == OTA_BEGIN_ERROR) {
-        Serial.println("Begin Failed");
-      } else if (error == OTA_CONNECT_ERROR) {
-        Serial.println("Connect Failed");
-      } else if (error == OTA_RECEIVE_ERROR) {
-        Serial.println("Receive Failed");
-      } else if (error == OTA_END_ERROR) {
-        Serial.println("End Failed");
-      }
-    });
-
-  ArduinoOTA.begin(); 
-
-
-
-
-  
-  //check if we can load stored stepper values
-  
-
-
-  stepper_config.speed = preferences.getLong("speed", defaultSpeed);
-  stepper_config.acceleration = preferences.getLong("acceleration",defaultAcceleration);
-  stepper_config.homingSpeed = preferences.getLong("homingSpeed",defaultHomingSpeed);
-  stepper_config.calibrationSpeed = preferences.getLong("calibrationSpeed",defaultCalibrationSpeed); 
-  stepper_config.calibrationAcceleration = preferences.getLong("calibrationAcceleration",defaultCalibrationAcceleration);
-  
-
-
-  long savedStepper0 = preferences.getLong("maxStepper0", 0);
-  if (savedStepper0 != 0){
-    maxPositionStepper[0] = savedStepper0;
-    calibratedStepper[0] = true;
-    webSerial.printf("stepper0 calibration found: %li", maxPositionStepper[0]);
-  }
-  long savedStepper1 = preferences.getLong("maxStepper1", 0);
-  if (savedStepper1 != 0){
-    maxPositionStepper[1] = savedStepper1;
-    calibratedStepper[1] = true;
-    webSerial.printf("stepper1 calibration found: %li", maxPositionStepper[1]);
-  }
-  //if (calibratedStepper[0] == true && calibratedStepper[1] == true){
-  if (calibratedStepper[0] == true){
-      calibrated = true;
-  }
-
-  // ##### end load calibration ######
-  
-  
-  // ---------- initialize stepper engine -------------
-  engine.init();
-  
-  //stepper0
-  FastAccelStepper *s = engine.stepperConnectToPin(stepPinStepper0, DRIVER_MCPWM_PCNT);
-  bool activeLow = !reverseStepper0; 
-  s->setDirectionPin(dirPinStepper0, activeLow); // Pass pin AND activeLow setting
-  s->setSpeedInHz(stepper_config.speed);
-  s->setAcceleration(stepper_config.acceleration);
-  stepper[0] = s;
-
-
-  //stepper1
-  s = engine.stepperConnectToPin(stepPinStepper1, DRIVER_MCPWM_PCNT);
-  activeLow = !reverseStepper1; 
-  s->setDirectionPin(dirPinStepper1, activeLow); // Pass pin AND activeLow setting
-  s->setAcceleration(stepper_config.acceleration);
-  stepper[1] = s;
-
-
-
-  
-
+  loadStoredStepperValues();
+  initializeSteppers();
 
   webSerial.onMessage([](const std::string& msg) 
   { 
@@ -209,8 +118,6 @@ void setup() {
  
 
 
-  webSerial.printf(">>>>>> %s is online. Searching for saved calibration...", DNSName);
-
 
   setupUI();
   ESPUI.setVerbosity(Verbosity::VerboseJSON);
@@ -222,7 +129,7 @@ void setup() {
   ESPUI.begin(titleBuffer);
   webSerial.begin(ESPUI.WebServer()); // Initialize WebSerial with ESPUI's server
   
-  // #####  end OTA & WebSocket server ######
+
 
 
   artnet.begin();
@@ -232,52 +139,6 @@ void setup() {
   //startHomingSteppers(true);
 }
 
-
-// ####### START CALIBRATION #################
-
-void startCalibration(){
-  calibrating = true;
-  calibratedStepper[0] = false;
-  calibratedStepper[1] = false;
-
-  stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
-  stepper[0]->setAcceleration(stepper_config.calibrationAcceleration);
-  stepper[0]->runForward();
-  
-  //stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
-  //stepper[1]->runForward();
-}
-
-
-void finishCalibrateStepper(uint8_t stepperId){
-  // we are now back at start position. 
-  // Current position will be 0 and negative steps traveled will be our max position.
-  stepsTraveledStepper[stepperId] = -1 * stepper[stepperId]->getCurrentPosition();
-  stepper[stepperId]->setCurrentPosition(0);
-  maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
-  calibratedStepper[stepperId] = true;
-  
-  //if (calibratedStepper[0] == true && calibratedStepper[1] == true){
-  if (calibratedStepper[0] == true){
-    //all calibration done
-    
-    // Store the position and close the Preferences
-    preferences.putLong("maxStepper0",maxPositionStepper[0]);
-    
-    webSerial.printf("saved maxStepper0: %li",maxPositionStepper[0]);
-    //preferences.putUInt("maxPositionStepper1",maxPositionStepper[1]);
-
-    preferences.end();
-    
-    calibrating = false;
-    calibrated = true;
-    // we're ready to rumble: set steppers to fullspeed
-    stepper[0]->setSpeedInHz(stepper_config.speed);
-    stepper[1]->setSpeedInHz(stepper_config.speed);
-    webSerial.printf(">>> Calibration of %s done!", DNSName);
-
-  }
-}
 
 
 
@@ -402,13 +263,13 @@ void onLimitSwitchReleased(int buttonId){
 
 
 
-// ####### END CALIBRATION #################
+
 
 
 
 void loop() {
-  button1.loop(); // MUST call the loop() function first
-  button2.loop(); // MUST call the loop() function first
+  button1.loop();
+  button2.loop();
   if(button1.isPressed()){
     webSerial.println("button 1 is pressed");
     onLimitSwitchPressed(1);
@@ -425,7 +286,7 @@ void loop() {
     webSerial.println("button 2 is released");
     onLimitSwitchReleased(2);
   }
-  ArduinoOTA.handle();
+  handleOTA();
   artnet.parse();  // check if artnet packet has come and execute callback function
 
   if (millis() - oldTime > 100)
@@ -485,35 +346,8 @@ void testLow(){
   digitalWrite(stepPinStepper1, LOW);
 }
 
-void startHomingSteppers(bool force) {
-  if (steppersHomed && !force){
-    return;
-  }
-  homing = true;
-  stepper[0]->setSpeedInHz(stepper_config.homingSpeed);
-  stepper[0]->runBackward();
 
-  //stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
-  //stepper[1]->runBackward();
-  webSerial.print(">>> starting homing ...");
-}
-  
-void finishHomingStepper(uint8_t stepperId){
-  stepper[stepperId]->stopMove();
-  stepper[stepperId]->setCurrentPosition(0);
-  homedStepper[stepperId] = true;
-  webSerial.printf(">>> Done homing stepper: %i", stepperId);
-  //if (homedStepper[0] ==true && homedStepper[1] == true){
-  if (homedStepper[0] ==true){
-    steppersHomed = true;
-    homing = false;
-    homingDoneSinceStartup = true;
-    webSerial.print(">>> Homing complete!");
-    stepper[0]->setSpeedInHz(stepper_config.speed);
-    stepper[1]->setSpeedInHz(stepper_config.speed);
-  }
-}
- 
+
 void sendStatus(){
   webSerial.println("");
   webSerial.printf("####### status %s ####", DNSName);
@@ -525,24 +359,3 @@ void sendStatus(){
   webSerial.print("##########################");
 }
 
-void saveSteppersAcceleration(uint32_t acceleration) {
-  stepper_config.acceleration = acceleration;
-  preferences.putLong("acceleration", acceleration);
-  stepper[0]->setAcceleration(acceleration);
-  stepper[1]->setAcceleration(acceleration);
-}
-void saveSteppersSpeed(uint32_t speed) {
-  stepper_config.speed = speed;
-  preferences.putLong("speed", speed);
-  stepper[0]->setSpeedInHz(speed);
-  stepper[1]->setSpeedInHz(speed);
-}
-
-void runForward() {
-  stepper[0]->runForward();
-}
-
-void stopMotors() {
-  stepper[0]->stopMove();
-  stepper[1]->stopMove();
-}
