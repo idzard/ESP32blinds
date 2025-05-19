@@ -6,7 +6,6 @@
 // External references
 extern Preferences preferences;
 extern WebSerial webSerial;
-extern const char* DNSName;
 
 
 void loadStoredStepperValues() {
@@ -154,4 +153,123 @@ void runForward() {
 void stopMotors() {
   stepper[0]->stopMove();
   stepper[1]->stopMove();
+}
+
+void onLimitSwitchPressed(int buttonId){
+  webSerial.printf("Button %d pressed", buttonId);
+  Serial.println(buttonId);
+  switch (buttonId) {
+    case 1:
+    {
+      //limitStartStepper0
+      stepper[0]->stopMove();
+      webSerial.println("limitStartStepper0 pressed");
+      if (homing){
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
+        stepper[0]->runForward();
+        Serial.println("slowly homing forward");
+      }
+      
+      
+      if (calibrating && !calibratedStepper[0]){
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
+        stepper[0]->runForward();
+      }
+      break;
+    }
+    case 2:
+    {
+      //limitEndStepper0
+      stepper[0]->stopMove();
+      webSerial.println("limitEndStepper0 pressed");
+      if (calibrating && !calibratedStepper[0]){
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
+        stepper[0]->runBackward();
+      }
+      break;
+    }
+    case 3:
+    {
+      //limitStartStepper1
+      stepper[1]->stopMove();
+      
+      if (homing){
+        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
+        stepper[1]->runBackward();
+        Serial.println("limitStartStepper1 pressed. slow homing forward");
+      }
+      
+      if (calibrating && !calibratedStepper[1]){
+        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
+        stepper[1]->runBackward();
+      }
+      break;
+    }
+    case 4:
+    {
+      //limitEndStepper1
+      stepper[1]->stopMove();
+      Serial.println("limitEndStepper1 pressed");
+      if (calibrating && !calibratedStepper[1]){
+        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
+        stepper[0]->runBackward();
+         
+      }
+      break;
+    }
+  }
+}
+
+void onLimitSwitchReleased(int buttonId){
+  switch (buttonId) {
+    case 1:
+    {
+      //limitStartStepper0
+      stepper[0]->stopMove();
+      Serial.println("limitStartStepper0 released");
+      if (homing){
+        Serial.println("homing done");
+        finishHomingStepper(0);
+      }
+      
+      if (calibrating && !calibratedStepper[0]){
+        finishCalibrateStepper(0);
+      }
+      break;
+    }
+    case 2:
+    {
+      //limitEndStepper0
+      stepper[0]->stopMove();
+      Serial.println("limitEndStepper0 released");
+      if (calibrating){
+        stepper[0]->setCurrentPosition(0);
+        stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
+        stepper[0]->runBackward();
+      }
+      break;
+    }
+    case 3:
+    {
+      //limitStartStepper1
+      stepper[1]->stopMove();
+      Serial.println("limitStartStepper1 released");
+      if (calibrating && !calibratedStepper[1]){
+        finishCalibrateStepper(1);
+      }
+      break;
+    }
+    case 4:
+    {
+      //limitEndStepper1
+      stepper[1]->stopMove();
+      Serial.println("limitEndStepper1 released");
+      if (calibrating && !calibratedStepper[1]){
+        stepper[1]->setCurrentPosition(0);
+        stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
+        stepper[1]->runBackward();
+      }
+      break;
+    }
+  }
 }

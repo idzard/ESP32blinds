@@ -63,5 +63,11 @@ void finishCalibrateStepper(uint8_t stepperId);
 void loadStoredStepperValues(); // Function to load stored stepper values from preferences
 void initializeSteppers(); // Function to initialize stepper motors
 void setupWebSerialCommands(); // Function to setup webSerial message handler
+void onLimitSwitchPressed(int buttonId); // Function to handle limit switch press events
+void onLimitSwitchReleased(int buttonId); // Function to handle limit switch release events
+void saveSteppersAcceleration(uint32_t acceleration); // Function to save and apply stepper acceleration
+void saveSteppersSpeed(uint32_t speed); // Function to save and apply stepper speed
+void runForward(); // Function to run stepper forward
+void stopMotors(); // Function to stop all motors
 
 #endif // STEPPER_INTERFACE_H

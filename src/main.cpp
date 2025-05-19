@@ -12,6 +12,7 @@
 #include "blinds_core.h"
 #include "webui.h"
 #include "ota.h"
+#include "webserial.h"
 
 WebSerial webSerial;
 
@@ -40,11 +41,6 @@ struct stepper_config_s stepper_config = {
     };
 
 
-int statusLabelId;
-int graphId;
-int millisLabelId;
-int testSwitchId;
-int oldTime = 0;
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
 FastAccelStepper *stepper[2];
@@ -86,35 +82,13 @@ void setup() {
   ETH.begin();
   ETH.config(ip, gateway, subnet_mask);
   MDNS.begin(DNSName); 
+  
   setupOTA();
 
   loadStoredStepperValues();
   initializeSteppers();
 
-  webSerial.onMessage([](const std::string& msg) 
-  { 
-    Serial.println(msg.c_str()); 
-    webSerial.printf("> received command: %s", msg.c_str());
-    String ms = msg.c_str();
-    if (msg == "calibrate"){
-      startCalibration();
-      webSerial.printf(">>> Starting calibration of %s ...", DNSName);
-    } else if(msg == "status"){ 
-        sendStatus();
-    }
-    else if(msg == "home"){ 
-        startHomingSteppers(true);
-    }
-    else if(msg == "high"){ 
-        testHigh();
-    }
-    else if(msg == "low"){ 
-        testLow();
-    }
-    else{
-      webSerial.printf("> error: unknown command");
-    }
-  });
+  setupWebSerialCommands();
  
 
 
@@ -142,160 +116,28 @@ void setup() {
 
 
 
-void onLimitSwitchPressed(int buttonId){
-  webSerial.printf("Button %d pressed", buttonId);
-  Serial.println(buttonId);
-  switch (buttonId) {
-    case 1:
-    {
-      //limitStartStepper0
-      stepper[0]->stopMove();
-      webSerial.println("limitStartStepper0 pressed");
-      if (homing){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runForward();
-        Serial.println("slowly homing forward");
-      }
-      
-      
-      if (calibrating && !calibratedStepper[0]){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runForward();
-      }
-      break;  
-    }
-    case 2:
-    {
-      //limitEndStepper0
-      stepper[0]->stopMove();
-      webSerial.println("limitEndStepper0 pressed");
-      if (calibrating && !calibratedStepper[0]){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runBackward();
-      }
-      break;  
-    }
-    case 3:
-    {
-      //limitStartStepper1
-      stepper[1]->stopMove();
-      
-      if (homing){
-        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[1]->runBackward();
-        Serial.println("limitStartStepper1 pressed. slow homing forward");
-      }
-      
-      if (calibrating && !calibratedStepper[1]){
-        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[1]->runBackward();
-      }
-      break;  
-    }
-    case 4:
-    {
-      //limitEndStepper1
-      stepper[1]->stopMove();
-      Serial.println("limitEndStepper1 pressed");
-      if (calibrating && !calibratedStepper[1]){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runBackward();
-         
-      }
-      break;  
-    }
-  }
-}
-
-void onLimitSwitchReleased(int buttonId){
-  switch (buttonId) {
-    case 1:
-    {
-      //limitStartStepper0
-      stepper[0]->stopMove();
-      Serial.println("limitStartStepper0 released");
-      if (homing){
-        Serial.println("homing done");
-        finishHomingStepper(0);
-      }
-      
-      if (calibrating && !calibratedStepper[0]){
-        finishCalibrateStepper(0);
-      }
-      break;  
-    }
-    case 2:
-    {
-      //limitEndStepper0
-      stepper[0]->stopMove();
-      Serial.println("limitEndStepper0 released");
-      if (calibrating){
-        stepper[0]->setCurrentPosition(0);
-        stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
-        stepper[0]->runBackward();
-      }
-      break;  
-    }
-    case 3:
-    {
-      //limitStartStepper1
-      stepper[1]->stopMove();
-      Serial.println("limitStartStepper1 released");
-      if (calibrating && !calibratedStepper[1]){
-        finishCalibrateStepper(1);
-      }
-      break;  
-    }
-    case 4:
-    {
-      //limitEndStepper1
-      stepper[1]->stopMove();
-      Serial.println("limitEndStepper1 released");
-      if (calibrating && !calibratedStepper[1]){
-        stepper[1]->setCurrentPosition(0);
-        stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
-        stepper[1]->runBackward();
-      }
-      break;  
-    }
-  }
-}
-
-
-
-
-
+// Functions onLimitSwitchPressed() and onLimitSwitchReleased() moved to steppers.cpp
 
 
 void loop() {
   button1.loop();
   button2.loop();
   if(button1.isPressed()){
-    webSerial.println("button 1 is pressed");
     onLimitSwitchPressed(1);
   }
   if(button1.isReleased()){
-    webSerial.println("button 1 is released");
     onLimitSwitchReleased(1);
   }
   if(button2.isPressed()){
-    webSerial.println("button 2 is pressed");
     onLimitSwitchPressed(2);
   }
   if(button2.isReleased()){
-    webSerial.println("button 2 is released");
     onLimitSwitchReleased(2);
   }
+
   handleOTA();
   artnet.parse();  // check if artnet packet has come and execute callback function
 
-  if (millis() - oldTime > 100)
-    {
-        ESPUI.print(millisLabelId, String(millis()));
-
-
-        oldTime = millis();
-    }
 }
 
 
@@ -328,34 +170,5 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
     
 }
 
-void testHigh(){
-  webSerial.print(">>> test high...");
-  // Using dirPinStepper1 (14) and stepPinStepper1 (15)
-  pinMode(dirPinStepper1, OUTPUT);
-  pinMode(stepPinStepper1, OUTPUT);
-  digitalWrite(dirPinStepper1, HIGH);
-  digitalWrite(stepPinStepper1, HIGH);
-}
-
-void testLow(){
-  webSerial.print(">>> test low...");
-  // Using dirPinStepper1 (14) and stepPinStepper1 (15)
-  pinMode(dirPinStepper1, OUTPUT);
-  pinMode(stepPinStepper1, OUTPUT);
-  digitalWrite(dirPinStepper1, LOW);
-  digitalWrite(stepPinStepper1, LOW);
-}
-
-
-
-void sendStatus(){
-  webSerial.println("");
-  webSerial.printf("####### status %s ####", DNSName);
-  webSerial.printf("calibrating:  %s", calibrating ? "true" : "false");
-  webSerial.printf("calibratedStepper[0]: %s", calibratedStepper[0] ? "true" : "false"); 
-  webSerial.printf("calibratedStepper[1]: %s", calibratedStepper[1] ? "true" : "false");
-  webSerial.printf("calibrated:  %s", calibrated ? "true" : "false");
-  webSerial.printf("homingDoneSinceStartup:  %s", homingDoneSinceStartup ? "true" : "false");
-  webSerial.print("##########################");
-}
+// Functions testHigh(), testLow(), and sendStatus() moved to webserial.cpp
 
