@@ -42,17 +42,17 @@ void numberCallback(Control *sender, int type){
 
 void updateCalibrationStatusStepper(uint8_t stepperId) {
     if (stepperId == 0) {
-        ESPUI.updateLabel(calibratedStatusStepper0, calibratedStepper[0] ? "Stepper0 is calibrated" : "Not calibrated yet!");
+        ESPUI.updateLabel(calibratedStatusStepper0, calibratedStepper[0] ? "&#x2705; calibrated" : "&#x10102; not calibrated yet !");
     } else if (stepperId == 1) {
-        ESPUI.updateLabel(calibratedStatusStepper1, calibratedStepper[1] ? "Stepper1 is calibrated" : "Not calibrated yet!");
+        ESPUI.updateLabel(calibratedStatusStepper1, calibratedStepper[1] ? "&#x2705; calibrated" : "&#x10102; not calibrated yet !");
     }
 }
 
 void updateHomingStatusStepper(uint8_t stepperId) {
     if (stepperId == 0) {
-        ESPUI.updateLabel(homedStatusStepper0, sinceStartupHomedStepper[0] ? "Stepper0 has homed since startup" : "Not homed yet!");
+        ESPUI.updateLabel(homedStatusStepper0, sinceStartupHomedStepper[0] ? "&#x2705; homed" : "&#x10102; not homed yet !");
     } else if (stepperId == 1) {
-        ESPUI.updateLabel(homedStatusStepper1, sinceStartupHomedStepper[1] ? "Stepper1 has homed since startup" : "Not homed yet!");
+        ESPUI.updateLabel(homedStatusStepper1, sinceStartupHomedStepper[1] ? "&#x2705; homed" : "&#x10102; not homed yet !");
     }
 }
 
@@ -160,21 +160,21 @@ void setupUI() {
         ESPUI.setElementStyle(ESPUI.addControl(Label, "", "T", None, vertgroupslider), switcherLabelStyle);
 
         //stepper0
-        calibratedStatusStepper0 = ESPUI.addControl(Label, "Stepper 0", "Not calibrated yet!", Dark, controlstab);
-        ESPUI.updateLabel(calibratedStatusStepper0, calibratedStepper[0] ? "Stepper0 is calibrated" : "Not calibrated yet!");
+        calibratedStatusStepper0 = ESPUI.addControl(Label, "Bottom Screen", "Not calibrated yet!", Dark, controlstab);
+        updateCalibrationStatusStepper(0);
         ESPUI.addControl(Button, "Calibrate stepper0", "Calibrate stepper0", ControlColor::Dark, calibratedStatusStepper0, calibrateStepper0Callback);
 
         homedStatusStepper0 = ESPUI.addControl(Label, "Homed Stepper 0", "Not homed yet!", Dark, calibratedStatusStepper0);
-        ESPUI.updateLabel(homedStatusStepper0, sinceStartupHomedStepper[0] ? "Stepper0 has homed since startup" : "Not homed yet!");
+        updateHomingStatusStepper(0);
         ESPUI.addControl(Button, "Home stepper0", "Home stepper0", ControlColor::Dark, calibratedStatusStepper0, homeStepper0Callback);
 
         //stepper1
-        calibratedStatusStepper1 = ESPUI.addControl(Label, "Stepper 1", "Not calibrated yet!", Dark, controlstab);
-        ESPUI.updateLabel(calibratedStatusStepper1, calibratedStepper[1] ? "Stepper1 is calibrated" : "Not calibrated yet!");
+        calibratedStatusStepper1 = ESPUI.addControl(Label, "Top Screen", "Not calibrated yet!", Dark, controlstab);
+        updateCalibrationStatusStepper(1);
         ESPUI.addControl(Button, "Calibrate stepper1", "Calibrate stepper1", ControlColor::Dark, calibratedStatusStepper1, calibrateStepper1Callback);
 
         homedStatusStepper1 = ESPUI.addControl(Label, "Homed Stepper 1", "Not homed yet!", Dark, calibratedStatusStepper1);
-        ESPUI.updateLabel(homedStatusStepper1, sinceStartupHomedStepper[1] ? "Stepper1 has homed since startup" : "Not homed yet!");
+        updateHomingStatusStepper(1);
         ESPUI.addControl(Button, "Home stepper1", "Home stepper1", ControlColor::Dark, calibratedStatusStepper1, homeStepper1Callback);
 
         ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, controlstab, forwardCallback);
