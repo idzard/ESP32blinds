@@ -18,6 +18,7 @@
 #define defaultHomingSpeed 5000
 #define defaultCalibrationSpeed 15000
 #define defaultCalibrationAcceleration 800000
+#define defaultSafetyMargin 500
 
 // Struct Definitions
 struct stepper_config_s {
@@ -28,6 +29,7 @@ struct stepper_config_s {
   uint32_t acceleration;
   uint32_t calibrationSpeed;
   uint32_t calibrationAcceleration;
+  uint32_t safetyMargin;
 };
 
 // Extern Variable Declarations for Stepper Control
@@ -35,10 +37,10 @@ extern long m1Max; // Max position for motor 1 (derived from calibration)
 extern long m2Max; // Max position for motor 2 (derived from calibration)
 
 
-extern bool homing;
-extern bool homingDoneSinceStartup;
+extern bool currentlyHomingStepper[2];
+extern bool sinceStartupHomedStepper[2];
 extern bool homedStepper[2];
-extern bool steppersHomed;
+extern bool allSteppersAreHomed;
 extern bool calibrating;
 extern bool calibrated;
 extern bool calibratedStepper[2];
@@ -69,5 +71,6 @@ void saveSteppersAcceleration(uint32_t acceleration); // Function to save and ap
 void saveSteppersSpeed(uint32_t speed); // Function to save and apply stepper speed
 void runForward(); // Function to run stepper forward
 void stopMotors(); // Function to stop all motors
+void moveScreenSafelyFromNormalizedPosition(uint8_t stepperId, float value); // Function to move screen safely from normalized position
 
 #endif // STEPPER_INTERFACE_H

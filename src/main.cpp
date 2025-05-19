@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ArtnetETH.h>
+#include <ArduinoOSCETH.h>
 #include <ArduinoOTA.h>
 #include <ESPmDNS.h>
 #include <ESPUI.h>
@@ -35,15 +36,6 @@ long stepsTraveledStepper[2];
 uint32_t minPositionStepper[2] = {0,0};
 long maxPositionStepper[2];
 
-// Using the stepper_config_s struct defined in stepper_interface.h
-struct stepper_config_s stepper_config = {
-      speed : 0,
-    };
-
-
-
-FastAccelStepperEngine engine = FastAccelStepperEngine();
-FastAccelStepper *stepper[2];
 
 Preferences preferences;
 
@@ -56,6 +48,14 @@ uint8_t universe2 = 2;  // 0 - 15
 unsigned long lastHeartbeat = 0;
 
 
+void onOSCReceivedBottomScreenPosition(OscMessage& m) {
+    webSerial.printf("received bottom position: %f", m.arg<float>(0));
+    moveScreenSafelyFromNormalizedPosition(0, float(m.arg<float>(0)));
+}
+void onOSCReceivedTopScreenPosition(OscMessage& m) {
+    webSerial.printf("received top position: %f", m.arg<float>(0));
+    moveScreenSafelyFromNormalizedPosition(1, float(m.arg<float>(0)));
+}
 
 
 void setup() {
@@ -104,19 +104,16 @@ void setup() {
   webSerial.begin(ESPUI.WebServer()); // Initialize WebSerial with ESPUI's server
   
 
+  OscEther.subscribe(7000, "/bottomscreen/position", onOSCReceivedBottomScreenPosition);
+  OscEther.subscribe(7000, "/topscreen/position", onOSCReceivedTopScreenPosition);
 
-
-  artnet.begin();
-  artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
+  //artnet.begin();
+  //artnet.subscribeArtDmxUniverse(net, subnet, universe1, onArtnetReceive);
 
   
   //startHomingSteppers(true);
 }
 
-
-
-
-// Functions onLimitSwitchPressed() and onLimitSwitchReleased() moved to steppers.cpp
 
 
 void loop() {
@@ -136,7 +133,8 @@ void loop() {
   }
 
   handleOTA();
-  artnet.parse();  // check if artnet packet has come and execute callback function
+  OscEther.update();
+  //artnet.parse();  // check if artnet packet has come and execute callback function
 
 }
 
@@ -170,5 +168,5 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
     
 }
 
-// Functions testHigh(), testLow(), and sendStatus() moved to webserial.cpp
+
 

@@ -2,11 +2,17 @@
 #include <Preferences.h>
 #include <MycilaWebSerial.h>
 #include "configLoader.h"
+#include <FastAccelStepper.h>
 
 // External references
 extern Preferences preferences;
 extern WebSerial webSerial;
 
+
+struct stepper_config_s stepper_config;
+
+FastAccelStepper* stepper[2];  // Array of pointers to FastAccelStepper objects
+FastAccelStepperEngine engine;
 
 void loadStoredStepperValues() {
   //check if we can load stored stepper values
@@ -16,7 +22,8 @@ void loadStoredStepperValues() {
   stepper_config.homingSpeed = preferences.getLong("homingSpeed", defaultHomingSpeed);
   stepper_config.calibrationSpeed = preferences.getLong("calibrationSpeed", defaultCalibrationSpeed);
   stepper_config.calibrationAcceleration = preferences.getLong("calibrationAcceleration", defaultCalibrationAcceleration);
-  
+  stepper_config.safetyMargin = preferences.getLong("safetyMargin", defaultSafetyMargin);
+
   long savedStepper0 = preferences.getLong("maxStepper0", 0);
   if (savedStepper0 != 0) {
     maxPositionStepper[0] = savedStepper0;
@@ -104,10 +111,11 @@ void finishCalibrateStepper(uint8_t stepperId){
 }
 
 void startHomingSteppers(bool force) {
-  if (steppersHomed && !force){
+  if (!force){
     return;
   }
-  homing = true;
+  currentlyHomingStepper[0] = true;
+  currentlyHomingStepper[1] = true;
   stepper[0]->setSpeedInHz(stepper_config.homingSpeed);
   stepper[0]->runBackward();
 
@@ -120,17 +128,13 @@ void finishHomingStepper(uint8_t stepperId){
   stepper[stepperId]->stopMove();
   stepper[stepperId]->setCurrentPosition(0);
   homedStepper[stepperId] = true;
-  webSerial.printf(">>> Done homing stepper: %i", stepperId);
-  //if (homedStepper[0] ==true && homedStepper[1] == true){
-  if (homedStepper[0] ==true){
-    steppersHomed = true;
-    homing = false;
-    homingDoneSinceStartup = true;
-    webSerial.print(">>> Homing complete!");
-    stepper[0]->setSpeedInHz(stepper_config.speed);
-    stepper[1]->setSpeedInHz(stepper_config.speed);
-  }
+  currentlyHomingStepper[stepperId] = false;
+  sinceStartupHomedStepper[stepperId] = true;
+  webSerial.printf(">>> Homing stepper %li complete!", stepperId);
+  stepper[stepperId]->setSpeedInHz(stepper_config.speed);
 }
+  
+
 
 void saveSteppersAcceleration(uint32_t acceleration) {
   stepper_config.acceleration = acceleration;
@@ -145,6 +149,11 @@ void saveSteppersSpeed(uint32_t speed) {
   stepper[0]->setSpeedInHz(speed);
   stepper[1]->setSpeedInHz(speed);
 }
+void saveSafetyMargin(uint32_t safetyMargin) {
+  stepper_config.safetyMargin = safetyMargin;
+  preferences.putLong("safetyMargin", safetyMargin);
+}
+
 
 void runForward() {
   stepper[0]->runForward();
@@ -164,17 +173,9 @@ void onLimitSwitchPressed(int buttonId){
       //limitStartStepper0
       stepper[0]->stopMove();
       webSerial.println("limitStartStepper0 pressed");
-      if (homing){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runForward();
-        Serial.println("slowly homing forward");
-      }
-      
-      
-      if (calibrating && !calibratedStepper[0]){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runForward();
-      }
+      currentlyHomingStepper[0] = true;
+      stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
+      stepper[0]->runForward();
       break;
     }
     case 2:
@@ -182,39 +183,25 @@ void onLimitSwitchPressed(int buttonId){
       //limitEndStepper0
       stepper[0]->stopMove();
       webSerial.println("limitEndStepper0 pressed");
-      if (calibrating && !calibratedStepper[0]){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runBackward();
-      }
+      stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
+      stepper[0]->runBackward();
       break;
     }
     case 3:
     {
       //limitStartStepper1
       stepper[1]->stopMove();
-      
-      if (homing){
-        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[1]->runBackward();
-        Serial.println("limitStartStepper1 pressed. slow homing forward");
-      }
-      
-      if (calibrating && !calibratedStepper[1]){
-        stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[1]->runBackward();
-      }
+      currentlyHomingStepper[1] = true;
+      stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
+      stepper[1]->runForward();
       break;
     }
     case 4:
     {
       //limitEndStepper1
       stepper[1]->stopMove();
-      Serial.println("limitEndStepper1 pressed");
-      if (calibrating && !calibratedStepper[1]){
-        stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
-        stepper[0]->runBackward();
-         
-      }
+      stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
+      stepper[1]->runBackward();
       break;
     }
   }
@@ -227,8 +214,7 @@ void onLimitSwitchReleased(int buttonId){
       //limitStartStepper0
       stepper[0]->stopMove();
       Serial.println("limitStartStepper0 released");
-      if (homing){
-        Serial.println("homing done");
+      if (currentlyHomingStepper[0]){
         finishHomingStepper(0);
       }
       
@@ -241,7 +227,6 @@ void onLimitSwitchReleased(int buttonId){
     {
       //limitEndStepper0
       stepper[0]->stopMove();
-      Serial.println("limitEndStepper0 released");
       if (calibrating){
         stepper[0]->setCurrentPosition(0);
         stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
@@ -253,7 +238,11 @@ void onLimitSwitchReleased(int buttonId){
     {
       //limitStartStepper1
       stepper[1]->stopMove();
-      Serial.println("limitStartStepper1 released");
+      
+      if (currentlyHomingStepper[1]){
+        finishHomingStepper(1);
+      }
+
       if (calibrating && !calibratedStepper[1]){
         finishCalibrateStepper(1);
       }
@@ -263,7 +252,6 @@ void onLimitSwitchReleased(int buttonId){
     {
       //limitEndStepper1
       stepper[1]->stopMove();
-      Serial.println("limitEndStepper1 released");
       if (calibrating && !calibratedStepper[1]){
         stepper[1]->setCurrentPosition(0);
         stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
@@ -273,3 +261,26 @@ void onLimitSwitchReleased(int buttonId){
     }
   }
 }
+
+void moveScreenSafelyFromNormalizedPosition(uint8_t stepperId, float value){
+  if (calibratedStepper[stepperId] == false){
+    webSerial.println(">>> stepper not calibrated, OSC positions ignored");
+    return;
+  } 
+  else {
+    if (value < 0.0 || value > 1.0){
+      webSerial.println(">>> invalid OSC position, must be between 0 and 1");
+      return;
+    } 
+  }
+  webSerial.printf(">>> input value: %f", value);
+  // Safety margin
+  long safetyMargin = stepper_config.safetyMargin;
+  webSerial.printf(">>> safety margin: %li", safetyMargin);
+  long safetyMinimum = 0 + safetyMargin;
+  long safetyMaximum = maxPositionStepper[stepperId] - safetyMargin;
+  long remappedValue = (long)(value * (float)(safetyMaximum - safetyMinimum) + safetyMinimum);
+  webSerial.printf(">>> remapped value: %li", remappedValue);
+  stepper[stepperId]->moveTo(remappedValue);
+}
+

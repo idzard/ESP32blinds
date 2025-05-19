@@ -25,7 +25,7 @@ extern void saveSteppersSpeed(uint32_t speed);
 extern void saveSteppersAcceleration(uint32_t acceleration);
 
 //UI handles
-uint16_t speedControl, accelControl;
+uint16_t speedControl, accelControl, safetyMarginControl;
 
 void textCallback(Control *sender, int type);
 void generalCallback(Control *sender, int type);
@@ -95,6 +95,21 @@ void homingCallback(Control* sender, int type) {
     startHomingSteppers(true);
 }
 
+void safetyMarginSaveCallback(Control* sender, int type)
+{
+    switch (type)
+    {
+    
+    case B_UP:
+        // Handle button release
+        uint32_t newSafetyMargin = ESPUI.getControl(safetyMarginControl)->value.toInt();
+        webSerial.printf("Safety Margin value is  now: %u \n", newSafetyMargin);
+        stepper_config.safetyMargin = newSafetyMargin;
+        preferences.putLong("safetyMargin", newSafetyMargin);
+        break;
+    }
+}
+
 
 // Add more callback function implementations here as needed
 
@@ -122,6 +137,11 @@ void setupUI() {
 
     ESPUI.addControl(Button, "Start homing", "Start homing", ControlColor::Dark, controlstab, homingCallback);
 
+    ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, controlstab, forwardCallback);
+    ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, controlstab, stopCallback);
+
+    
+    
     // --------------------- Settings tab ---------------------
     auto settingstab = ESPUI.addControl(Tab, "", "Settings");
     speedControl = ESPUI.addControl(Number, "Speed", String(stepper_config.speed), ControlColor::Dark, settingstab , numberCallback);
@@ -134,6 +154,9 @@ void setupUI() {
     ESPUI.addControl(Max, "", "800000", None, accelControl);
     ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, accelControl, accelerationSaveCallback);
 
-    ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, settingstab, forwardCallback);
-    ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, settingstab, stopCallback);
+    safetyMarginControl = ESPUI.addControl(Number, "Safety Margin", String(stepper_config.safetyMargin), ControlColor::Dark, settingstab , numberCallback);
+    ESPUI.addControl(Min, "", "0", None, safetyMarginControl);
+    ESPUI.addControl(Max, "", "10000", None, safetyMarginControl);
+    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, safetyMarginControl, safetyMarginSaveCallback);
+
 }
