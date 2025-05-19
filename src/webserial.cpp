@@ -17,16 +17,14 @@ void setupWebSerialCommands() {
     Serial.println(msg.c_str()); 
     webSerial.printf("> received command: %s", msg.c_str());
     String ms = msg.c_str();
-    if (msg == "calibrate"){
-      startCalibration();
-      webSerial.printf(">>> Starting calibration of %s ...", DNSName);
-    } else if(msg == "status"){ 
-        sendStatus();
-    }
-    else if(msg == "home"){ 
-        startHomingSteppers(true);
-    }
-    else if(msg == "high"){ 
+
+    // if(msg == "status"){ 
+    //     sendStatus();
+    // }
+    // else if(msg == "home"){ 
+    //     startHomingSteppers(true);
+    // }
+    if(msg == "high"){ 
         testHigh();
     }
     else if(msg == "low"){ 
@@ -56,13 +54,13 @@ void testLow(){
   digitalWrite(stepPinStepper1, LOW);
 }
 
-void sendStatus(){
-  webSerial.println("");
-  webSerial.printf("####### status %s ####", DNSName);
-  webSerial.printf("calibrating:  %s", calibrating ? "true" : "false");
-  webSerial.printf("calibratedStepper[0]: %s", calibratedStepper[0] ? "true" : "false"); 
-  webSerial.printf("calibratedStepper[1]: %s", calibratedStepper[1] ? "true" : "false");
-  webSerial.printf("calibrated:  %s", calibrated ? "true" : "false");
-  webSerial.printf("homingDoneSinceStartup:  %s", homingDoneSinceStartup ? "true" : "false");
-  webSerial.print("##########################");
-}
+// void sendStatus(){
+//   webSerial.println("");
+//   webSerial.printf("####### status %s ####", DNSName);
+//   webSerial.printf("calibrating:  %s", calibrating ? "true" : "false");
+//   webSerial.printf("calibratedStepper[0]: %s", calibratedStepper[0] ? "true" : "false"); 
+//   webSerial.printf("calibratedStepper[1]: %s", calibratedStepper[1] ? "true" : "false");
+//   webSerial.printf("calibrated:  %s", calibrated ? "true" : "false");
+//   webSerial.printf("homingDoneSinceStartup:  %s", homingDoneSinceStartup ? "true" : "false");
+//   webSerial.print("##########################");
+// }

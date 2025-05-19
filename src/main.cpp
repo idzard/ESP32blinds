@@ -24,17 +24,7 @@ ezButton button2(35);
 long m1Max = 3200;
 long m2Max = 3200;
 
-bool homing = false;
-bool homingDoneSinceStartup = false;
-bool homedStepper[2] = {false, false};
-bool steppersHomed = false;
-bool calibrating = false;
-bool calibrated = false;
-bool calibratedStepper[2] = {false, false};
 
-long stepsTraveledStepper[2];
-uint32_t minPositionStepper[2] = {0,0};
-long maxPositionStepper[2];
 
 
 Preferences preferences;

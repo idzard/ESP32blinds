@@ -16,16 +16,21 @@ extern bool calibratedStepper[2];
 extern struct stepper_config_s stepper_config;
 
 
+
+
 // Declare functions from main.cpp as extern
 extern void runForward();
 extern void stopMotors();
-extern void startCalibration();
+extern void startCalibrationStepper(uint8_t stepperId);
+
 extern void startHomingSteppers(bool force);
 extern void saveSteppersSpeed(uint32_t speed);
 extern void saveSteppersAcceleration(uint32_t acceleration);
+extern void startHomingStepper(uint8_t stepperId, bool force);
 
-//UI handles
 uint16_t speedControl, accelControl, safetyMarginControl;
+uint16_t calibratedStatusStepper0, calibratedStatusStepper1;
+uint16_t homedStatusStepper0, homedStatusStepper1;
 
 void textCallback(Control *sender, int type);
 void generalCallback(Control *sender, int type);
@@ -33,6 +38,22 @@ void generalCallback(Control *sender, int type);
 void numberCallback(Control *sender, int type){
     uint32_t value = sender->value.toInt();
     webSerial.printf("new value is  %u \n", value);
+}
+
+void updateCalibrationStatusStepper(uint8_t stepperId) {
+    if (stepperId == 0) {
+        ESPUI.updateLabel(calibratedStatusStepper0, calibratedStepper[0] ? "Stepper0 is calibrated" : "Not calibrated yet!");
+    } else if (stepperId == 1) {
+        ESPUI.updateLabel(calibratedStatusStepper1, calibratedStepper[1] ? "Stepper1 is calibrated" : "Not calibrated yet!");
+    }
+}
+
+void updateHomingStatusStepper(uint8_t stepperId) {
+    if (stepperId == 0) {
+        ESPUI.updateLabel(homedStatusStepper0, sinceStartupHomedStepper[0] ? "Stepper0 has homed since startup" : "Not homed yet!");
+    } else if (stepperId == 1) {
+        ESPUI.updateLabel(homedStatusStepper1, sinceStartupHomedStepper[1] ? "Stepper1 has homed since startup" : "Not homed yet!");
+    }
 }
 
 
@@ -87,12 +108,20 @@ void stopCallback(Control* sender, int type) {
     stopMotors();
 }
 
-void calibrateCallback(Control* sender, int type) {
-    startCalibration();
+void calibrateStepper0Callback(Control* sender, int type) {
+    startCalibrationStepper(0);
 }
 
-void homingCallback(Control* sender, int type) {
-    startHomingSteppers(true);
+void calibrateStepper1Callback(Control* sender, int type) {
+    startCalibrationStepper(1);
+}
+
+void homeStepper0Callback(Control* sender, int type) {
+    startHomingStepper(0, true);
+}
+
+void homeStepper1Callback(Control* sender, int type) {
+    startHomingStepper(1, true);
 }
 
 void safetyMarginSaveCallback(Control* sender, int type)
@@ -122,41 +151,52 @@ void setupUI() {
 
     // --------------------- Control tab ---------------------
     auto controlstab = ESPUI.addControl(Tab, "", "Control");
-    auto vertgroupslider = ESPUI.addControl(Slider, "Positions", "0", Dark, controlstab, generalCallback);
-	ESPUI.setVertical(vertgroupslider);
-	ESPUI.setVertical(ESPUI.addControl(Slider, "", "100", None, vertgroupslider, generalCallback));
-	
-	ESPUI.setElementStyle(ESPUI.addControl(Label, "", "", None, vertgroupslider), clearLabelStyle);
-	ESPUI.setElementStyle(ESPUI.addControl(Label, "", "B", None, vertgroupslider), switcherLabelStyle);
-	ESPUI.setElementStyle(ESPUI.addControl(Label, "", "T", None, vertgroupslider), switcherLabelStyle);
+        auto vertgroupslider = ESPUI.addControl(Slider, "Positions", "0", Dark, controlstab, generalCallback);
+        ESPUI.setVertical(vertgroupslider);
+        ESPUI.setVertical(ESPUI.addControl(Slider, "", "100", None, vertgroupslider, generalCallback));
+        
+        ESPUI.setElementStyle(ESPUI.addControl(Label, "", "", None, vertgroupslider), clearLabelStyle);
+        ESPUI.setElementStyle(ESPUI.addControl(Label, "", "B", None, vertgroupslider), switcherLabelStyle);
+        ESPUI.setElementStyle(ESPUI.addControl(Label, "", "T", None, vertgroupslider), switcherLabelStyle);
 
-    
-    auto calibratedStatus = ESPUI.addControl(Label, "Calibration", "Not calibrated yet!", Dark, controlstab);
-    ESPUI.updateLabel(calibratedStatus, calibratedStepper[0] ? "Frame is calibrated" : "Not calibrated yet!");
-    ESPUI.addControl(Button, "Start calibration", "Start calibration", ControlColor::Dark, calibratedStatus, calibrateCallback);
+        //stepper0
+        calibratedStatusStepper0 = ESPUI.addControl(Label, "Stepper 0", "Not calibrated yet!", Dark, controlstab);
+        ESPUI.updateLabel(calibratedStatusStepper0, calibratedStepper[0] ? "Stepper0 is calibrated" : "Not calibrated yet!");
+        ESPUI.addControl(Button, "Calibrate stepper0", "Calibrate stepper0", ControlColor::Dark, calibratedStatusStepper0, calibrateStepper0Callback);
 
-    ESPUI.addControl(Button, "Start homing", "Start homing", ControlColor::Dark, controlstab, homingCallback);
+        homedStatusStepper0 = ESPUI.addControl(Label, "Homed Stepper 0", "Not homed yet!", Dark, calibratedStatusStepper0);
+        ESPUI.updateLabel(homedStatusStepper0, sinceStartupHomedStepper[0] ? "Stepper0 has homed since startup" : "Not homed yet!");
+        ESPUI.addControl(Button, "Home stepper0", "Home stepper0", ControlColor::Dark, calibratedStatusStepper0, homeStepper0Callback);
 
-    ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, controlstab, forwardCallback);
-    ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, controlstab, stopCallback);
+        //stepper1
+        calibratedStatusStepper1 = ESPUI.addControl(Label, "Stepper 1", "Not calibrated yet!", Dark, controlstab);
+        ESPUI.updateLabel(calibratedStatusStepper1, calibratedStepper[1] ? "Stepper1 is calibrated" : "Not calibrated yet!");
+        ESPUI.addControl(Button, "Calibrate stepper1", "Calibrate stepper1", ControlColor::Dark, calibratedStatusStepper1, calibrateStepper1Callback);
+
+        homedStatusStepper1 = ESPUI.addControl(Label, "Homed Stepper 1", "Not homed yet!", Dark, calibratedStatusStepper1);
+        ESPUI.updateLabel(homedStatusStepper1, sinceStartupHomedStepper[1] ? "Stepper1 has homed since startup" : "Not homed yet!");
+        ESPUI.addControl(Button, "Home stepper1", "Home stepper1", ControlColor::Dark, calibratedStatusStepper1, homeStepper1Callback);
+
+        ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, controlstab, forwardCallback);
+        ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, controlstab, stopCallback);
 
     
     
     // --------------------- Settings tab ---------------------
     auto settingstab = ESPUI.addControl(Tab, "", "Settings");
-    speedControl = ESPUI.addControl(Number, "Speed", String(stepper_config.speed), ControlColor::Dark, settingstab , numberCallback);
-    ESPUI.addControl(Min, "", "0", None, speedControl);
-    ESPUI.addControl(Max, "", "30000", None, speedControl);
-    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, speedControl, speedSaveCallback);
+        speedControl = ESPUI.addControl(Number, "Speed", String(stepper_config.speed), ControlColor::Dark, settingstab , numberCallback);
+        ESPUI.addControl(Min, "", "0", None, speedControl);
+        ESPUI.addControl(Max, "", "30000", None, speedControl);
+        ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, speedControl, speedSaveCallback);
 
-    accelControl = ESPUI.addControl(Number, "Acceleration", String(stepper_config.acceleration), ControlColor::Dark, settingstab , numberCallback);
-    ESPUI.addControl(Min, "", "0", None, accelControl);
-    ESPUI.addControl(Max, "", "800000", None, accelControl);
-    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, accelControl, accelerationSaveCallback);
+        accelControl = ESPUI.addControl(Number, "Acceleration", String(stepper_config.acceleration), ControlColor::Dark, settingstab , numberCallback);
+        ESPUI.addControl(Min, "", "0", None, accelControl);
+        ESPUI.addControl(Max, "", "800000", None, accelControl);
+        ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, accelControl, accelerationSaveCallback);
 
-    safetyMarginControl = ESPUI.addControl(Number, "Safety Margin", String(stepper_config.safetyMargin), ControlColor::Dark, settingstab , numberCallback);
-    ESPUI.addControl(Min, "", "0", None, safetyMarginControl);
-    ESPUI.addControl(Max, "", "10000", None, safetyMarginControl);
-    ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, safetyMarginControl, safetyMarginSaveCallback);
+        safetyMarginControl = ESPUI.addControl(Number, "Safety Margin", String(stepper_config.safetyMargin), ControlColor::Dark, settingstab , numberCallback);
+        ESPUI.addControl(Min, "", "0", None, safetyMarginControl);
+        ESPUI.addControl(Max, "", "10000", None, safetyMarginControl);
+        ESPUI.addControl(Button, "Save", "Save", ControlColor::Dark, safetyMarginControl, safetyMarginSaveCallback);
 
 }

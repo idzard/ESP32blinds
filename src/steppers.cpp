@@ -3,6 +3,7 @@
 #include <MycilaWebSerial.h>
 #include "configLoader.h"
 #include <FastAccelStepper.h>
+#include <webui.h>
 
 // External references
 extern Preferences preferences;
@@ -11,6 +12,15 @@ extern WebSerial webSerial;
 // Add definitions for these arrays
 bool currentlyHomingStepper[2] = {false, false};
 bool sinceStartupHomedStepper[2] = {false, false};
+
+bool currentlyCalibratingStepper[2] = {false, false};
+bool calibratedStepper[2] = {false, false};
+
+long stepsTraveledStepper[2];
+uint32_t minPositionStepper[2] = {0,0};
+long maxPositionStepper[2];
+
+
 
 struct stepper_config_s stepper_config;
 
@@ -41,10 +51,6 @@ void loadStoredStepperValues() {
     webSerial.printf("stepper1 calibration found: %li", maxPositionStepper[1]);
   }
   
-  //if (calibratedStepper[0] == true && calibratedStepper[1] == true){
-  if (calibratedStepper[0] == true) {
-    calibrated = true;
-  }
   
   // ##### end load calibration ######
 }
@@ -70,17 +76,13 @@ void initializeSteppers() {
   stepper[1] = s;
 }
 
-void startCalibration(){
-  calibrating = true;
-  calibratedStepper[0] = false;
-  calibratedStepper[1] = false;
+void startCalibrationStepper(uint8_t stepperId) {
+  currentlyCalibratingStepper[stepperId] = true;
+  calibratedStepper[stepperId] = false;
 
-  stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
-  stepper[0]->setAcceleration(stepper_config.calibrationAcceleration);
-  stepper[0]->runForward();
-  
-  //stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
-  //stepper[1]->runForward();
+  stepper[stepperId]->setSpeedInHz(stepper_config.calibrationSpeed);
+  stepper[stepperId]->setAcceleration(stepper_config.calibrationAcceleration);
+  stepper[stepperId]->runForward();
 }
 
 
@@ -90,13 +92,15 @@ void finishCalibrateStepper(uint8_t stepperId){
   stepsTraveledStepper[stepperId] = stepper[stepperId]->getCurrentPosition();
   stepper[stepperId]->setCurrentPosition(0);
   maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
+  currentlyCalibratingStepper[stepperId] = false;
   calibratedStepper[stepperId] = true;
+  updateCalibrationStatusStepper(stepperId);
 
   //also we're homed now
-  homedStepper[stepperId] = true;
   currentlyHomingStepper[stepperId] = false;
   sinceStartupHomedStepper[stepperId] = true;
-  
+  updateHomingStatusStepper(stepperId);
+
   if (stepperId == 0){
     preferences.putLong("maxStepper0",maxPositionStepper[0]);
     webSerial.printf("saved maxStepper0: %li",maxPositionStepper[0]);
@@ -110,28 +114,23 @@ void finishCalibrateStepper(uint8_t stepperId){
   stepper[stepperId]->setSpeedInHz(stepper_config.speed);
 }
 
-void startHomingSteppers(bool force) {
-  if (!force){
-    return;
-  }
-  currentlyHomingStepper[0] = true;
-  currentlyHomingStepper[1] = true;
-  stepper[0]->setSpeedInHz(stepper_config.homingSpeed);
-  stepper[0]->runBackward();
+void startHomingStepper(uint8_t stepperId, bool force) {
+ 
+  currentlyHomingStepper[stepperId] = true;
+  stepper[stepperId]->setSpeedInHz(stepper_config.homingSpeed);
+  stepper[stepperId]->runBackward();
+  webSerial.printf(">>> starting homing for stepper %li", stepperId);
 
-  //stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
-  //stepper[1]->runBackward();
-  webSerial.print(">>> starting homing ...");
 }
   
 void finishHomingStepper(uint8_t stepperId){
   stepper[stepperId]->stopMove();
   stepper[stepperId]->setCurrentPosition(0);
-  homedStepper[stepperId] = true;
   currentlyHomingStepper[stepperId] = false;
   sinceStartupHomedStepper[stepperId] = true;
   webSerial.printf(">>> Homing stepper %li complete!", stepperId);
   stepper[stepperId]->setSpeedInHz(stepper_config.speed);
+  updateHomingStatusStepper(stepperId);
 }
   
 
@@ -216,8 +215,8 @@ void onLimitSwitchReleased(int buttonId){
       if (currentlyHomingStepper[0]){
         finishHomingStepper(0);
       }
-      
-      if (calibrating && !calibratedStepper[0]){
+
+      if (currentlyCalibratingStepper[0]){
         finishCalibrateStepper(0);
       }
       break;
@@ -226,7 +225,7 @@ void onLimitSwitchReleased(int buttonId){
     {
       //limitEndStepper0
       stepper[0]->stopMove();
-      if (calibrating){
+      if (currentlyCalibratingStepper[0]){
         stepper[0]->setCurrentPosition(0);
         stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
         stepper[0]->runBackward();
@@ -242,7 +241,7 @@ void onLimitSwitchReleased(int buttonId){
         finishHomingStepper(1);
       }
 
-      if (calibrating && !calibratedStepper[1]){
+      if (currentlyCalibratingStepper[1]){
         finishCalibrateStepper(1);
       }
       break;
@@ -251,7 +250,7 @@ void onLimitSwitchReleased(int buttonId){
     {
       //limitEndStepper1
       stepper[1]->stopMove();
-      if (calibrating && !calibratedStepper[1]){
+      if (currentlyCalibratingStepper[1]){
         stepper[1]->setCurrentPosition(0);
         stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
         stepper[1]->runBackward();

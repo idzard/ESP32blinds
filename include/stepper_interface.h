@@ -39,10 +39,7 @@ extern long m2Max; // Max position for motor 2 (derived from calibration)
 
 extern bool currentlyHomingStepper[2];
 extern bool sinceStartupHomedStepper[2];
-extern bool homedStepper[2];
-extern bool allSteppersAreHomed;
-extern bool calibrating;
-extern bool calibrated;
+extern bool currentlyCalibratingStepper[2];
 extern bool calibratedStepper[2];
 
 extern long stepsTraveledStepper[2];
