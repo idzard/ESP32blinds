@@ -282,5 +282,6 @@ void moveScreenSafelyFromNormalizedPosition(uint8_t stepperId, float normalizedP
   long remappedValue = (long)(normalizedPosition * (float)(safetyMaximum - safetyMinimum) + safetyMinimum);
   webSerial.printf(">>> remapped value: %li", remappedValue);
   stepper[stepperId]->moveTo(remappedValue);
+  updateBottomScreenPositionSlider(normalizedPosition*100);
 }
 
