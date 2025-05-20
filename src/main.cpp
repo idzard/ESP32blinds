@@ -17,12 +17,10 @@
 
 WebSerial webSerial;
 
-ezButton button1(4);
-ezButton button2(35);
-
-
-long m1Max = 3200;
-long m2Max = 3200;
+ezButton button1(2); //bottom screen startswitch
+ezButton button2(4); //bottom screen endswitch
+ezButton button3(17); //top screen startswitch
+ezButton button4(12); //top screen endswitch
 
 
 
@@ -59,6 +57,8 @@ void setup() {
   
   button1.setDebounceTime(50); // set debounce time to 50 milliseconds
   button2.setDebounceTime(50); // set debounce time to 50 milliseconds
+  button3.setDebounceTime(50); // set debounce time to 50 milliseconds
+  button4.setDebounceTime(50); // set debounce time to 50 milliseconds
 
 
   
@@ -109,6 +109,8 @@ void setup() {
 void loop() {
   button1.loop();
   button2.loop();
+  button3.loop();
+  button4.loop();
   if(button1.isPressed()){
     onLimitSwitchPressed(1);
   }
@@ -120,6 +122,18 @@ void loop() {
   }
   if(button2.isReleased()){
     onLimitSwitchReleased(2);
+  }
+  if(button3.isPressed()){
+    onLimitSwitchPressed(3);
+  }
+  if(button3.isReleased()){
+    onLimitSwitchReleased(3);
+  }
+  if(button4.isPressed()){
+    onLimitSwitchPressed(4);
+  }
+  if(button4.isReleased()){
+    onLimitSwitchReleased(4);
   }
 
   handleOTA();

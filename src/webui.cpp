@@ -19,7 +19,7 @@ extern struct stepper_config_s stepper_config;
 
 
 // Declare functions from main.cpp as extern
-extern void runForward();
+extern void runForward(uint8_t stepperId);
 extern void stopMotors();
 extern void startCalibrationStepper(uint8_t stepperId);
 
@@ -108,8 +108,12 @@ void accelerationSaveCallback(Control* sender, int type)
     }
 }
 
-void forwardCallback(Control* sender, int type) {
-    runForward();
+void forward0Callback(Control* sender, int type) {
+    runForward(0);
+}
+
+void forward1Callback(Control* sender, int type) {
+    runForward(1);
 }
 
 void stopCallback(Control* sender, int type) {
@@ -177,6 +181,9 @@ void setupUI() {
         updateHomingStatusStepper(0);
         ESPUI.addControl(Button, "Home stepper0", "Home stepper0", ControlColor::Dark, calibratedStatusStepper0, homeStepper0Callback);
 
+        ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, calibratedStatusStepper0, forward0Callback);
+        ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, calibratedStatusStepper0, stopCallback);
+
         //stepper1
         calibratedStatusStepper1 = ESPUI.addControl(Label, "Top Screen", "Not calibrated yet.", Dark, controlstab);
         updateCalibrationStatusStepper(1);
@@ -186,8 +193,8 @@ void setupUI() {
         updateHomingStatusStepper(1);
         ESPUI.addControl(Button, "Home stepper1", "Home stepper1", ControlColor::Dark, calibratedStatusStepper1, homeStepper1Callback);
 
-        ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, controlstab, forwardCallback);
-        ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, controlstab, stopCallback);
+        ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, calibratedStatusStepper1, forward1Callback);
+        ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, calibratedStatusStepper1, stopCallback);
 
     
     

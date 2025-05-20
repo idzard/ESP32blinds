@@ -5,10 +5,19 @@
 #include <FastAccelStepper.h> // For FastAccelStepper type
 
 // Pin Definitions
-#define stepPinStepper0 15
-#define dirPinStepper0 14
-#define stepPinStepper1 32
-#define dirPinStepper1 33
+//prototype
+// #define stepPinStepper0 15 
+// #define dirPinStepper0 14
+// #define stepPinStepper1 32
+// #define dirPinStepper1 33 
+
+//production
+#define stepPinStepper0 32 
+#define dirPinStepper0 33
+#define stepPinStepper1 15
+#define dirPinStepper1 14 
+
+
 #define DRIVER_MCPWM_PCNT 0
 
 

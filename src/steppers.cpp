@@ -154,8 +154,12 @@ void saveSafetyMargin(uint32_t safetyMargin) {
 }
 
 
-void runForward() {
-  stepper[0]->runForward();
+void runForward(uint8_t stepperId) {
+  if (stepperId > 1) {
+    webSerial.println("Invalid stepper ID");
+    return;
+  }
+  stepper[stepperId]->runForward();
 }
 
 void stopMotors() {
@@ -252,7 +256,7 @@ void onLimitSwitchReleased(int buttonId){
       stepper[1]->stopMove();
       if (currentlyCalibratingStepper[1]){
         stepper[1]->setCurrentPosition(0);
-        stepper[1]->setSpeedInHz(stepper_config.homingSpeed);
+        stepper[1]->setSpeedInHz(stepper_config.calibrationSpeed);
         stepper[1]->runBackward();
       }
       break;
