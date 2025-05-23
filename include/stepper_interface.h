@@ -23,8 +23,8 @@
 
 //make defines for default stepper values
 #define defaultSpeed 30000
-#define defaultAcceleration 80000
-#define defaultHomingSpeed 5000
+#define defaultAcceleration 30000
+#define defaultHomingSpeed 10000
 #define defaultCalibrationSpeed 15000
 #define defaultCalibrationAcceleration 800000
 #define defaultSafetyMargin 500

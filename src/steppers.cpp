@@ -88,10 +88,13 @@ void startCalibrationStepper(uint8_t stepperId) {
 
 void finishCalibrateStepper(uint8_t stepperId){
   // we are now back at start position.
-  // Current position will be 0 and negative steps traveled will be our max position.
+  // Current position will be the total travel distance (likely negative from moving backward).
   stepsTraveledStepper[stepperId] = stepper[stepperId]->getCurrentPosition();
   stepper[stepperId]->setCurrentPosition(0);
-  maxPositionStepper[stepperId] = stepsTraveledStepper[stepperId];
+  // Use absolute value for maxPositionStepper to ensure positive travel range
+  maxPositionStepper[stepperId] = abs(stepsTraveledStepper[stepperId]);
+  webSerial.printf("Calibration: raw position=%li, using absolute value=%li", 
+                  stepsTraveledStepper[stepperId], maxPositionStepper[stepperId]);
   currentlyCalibratingStepper[stepperId] = false;
   calibratedStepper[stepperId] = true;
   updateCalibrationStatusStepper(stepperId);
@@ -100,18 +103,24 @@ void finishCalibrateStepper(uint8_t stepperId){
   currentlyHomingStepper[stepperId] = false;
   sinceStartupHomedStepper[stepperId] = true;
   updateHomingStatusStepper(stepperId);
-
   if (stepperId == 0){
     preferences.putLong("maxStepper0",maxPositionStepper[0]);
+    // Force synchronization by ending and reopening preferences
+    preferences.end();
+    preferences.begin("blinds", false);
     webSerial.printf("saved maxStepper0: %li",maxPositionStepper[0]);
   }
   if (stepperId == 1){
     preferences.putLong("maxStepper1",maxPositionStepper[1]);
+    // Force synchronization by ending and reopening preferences
+    preferences.end();
+    preferences.begin("blinds", false);
     webSerial.printf("saved maxStepper1: %li",maxPositionStepper[1]);
   }
 
-  // we're ready to rumble: set stepper to fullspeed
+  // we're ready to rumble: set stepper to fullspeed, normal acceleration
   stepper[stepperId]->setSpeedInHz(stepper_config.speed);
+  stepper[stepperId]->setAcceleration(stepper_config.acceleration);
 }
 
 void startHomingStepper(uint8_t stepperId, bool force) {
@@ -176,7 +185,8 @@ void onLimitSwitchPressed(int buttonId){
       //limitStartStepper0
       stepper[0]->stopMove();
       webSerial.println("limitStartStepper0 pressed");
-      currentlyHomingStepper[0] = true;
+      webSerial.printf("rawposition: %li", stepper[0]->getCurrentPosition());
+      //currentlyHomingStepper[0] = true;
       stepper[0]->setSpeedInHz(stepper_config.homingSpeed/10);
       stepper[0]->runForward();
       break;
@@ -194,7 +204,7 @@ void onLimitSwitchPressed(int buttonId){
     {
       //limitStartStepper1
       stepper[1]->stopMove();
-      currentlyHomingStepper[1] = true;
+      //currentlyHomingStepper[1] = true;
       stepper[1]->setSpeedInHz(stepper_config.homingSpeed/10);
       stepper[1]->runForward();
       break;
@@ -221,18 +231,22 @@ void onLimitSwitchReleased(int buttonId){
       }
 
       if (currentlyCalibratingStepper[0]){
+        webSerial.printf("final End position reached during calibration %li", stepper[0]->getCurrentPosition());
         finishCalibrateStepper(0);
       }
       break;
-    }
-    case 2:
+    }    case 2:
     {
       //limitEndStepper0
       stepper[0]->stopMove();
       if (currentlyCalibratingStepper[0]){
+        // When we reach the end position during calibration, set the position to 0
+        // so that we can measure the total travel distance when moving back
+        webSerial.printf("Start position reached during calibration %li", stepper[0]->getCurrentPosition());
         stepper[0]->setCurrentPosition(0);
         stepper[0]->setSpeedInHz(stepper_config.calibrationSpeed);
         stepper[0]->runBackward();
+        webSerial.println("End position reached during calibration, position reset to 0, moving backward");
       }
       break;
     }
@@ -249,15 +263,17 @@ void onLimitSwitchReleased(int buttonId){
         finishCalibrateStepper(1);
       }
       break;
-    }
-    case 4:
+    }    case 4:
     {
       //limitEndStepper1
       stepper[1]->stopMove();
       if (currentlyCalibratingStepper[1]){
+        // When we reach the end position during calibration, set the position to 0
+        // so that we can measure the total travel distance when moving back
         stepper[1]->setCurrentPosition(0);
         stepper[1]->setSpeedInHz(stepper_config.calibrationSpeed);
         stepper[1]->runBackward();
+        webSerial.println("End position reached during calibration, position reset to 0, moving backward");
       }
       break;
     }
@@ -277,14 +293,18 @@ void moveScreenSafelyFromNormalizedPosition(uint8_t stepperId, float normalizedP
     webSerial.println(">>> invalid OSC position, must be between 0 and 1");
     return;
   }
-  webSerial.printf(">>> input value: %f", normalizedPosition);
+  //webSerial.printf(">>> stepper %i OSC input value: %f", stepperId, normalizedPosition);
   // Safety margin
   long safetyMargin = stepper_config.safetyMargin;
-  webSerial.printf(">>> safety margin: %li", safetyMargin);
+  //webSerial.printf(">>> safety margin: %li", safetyMargin);
   long safetyMinimum = 0 + safetyMargin;
   long safetyMaximum = maxPositionStepper[stepperId] - safetyMargin;
   long remappedValue = (long)(normalizedPosition * (float)(safetyMaximum - safetyMinimum) + safetyMinimum);
-  webSerial.printf(">>> remapped value: %li", remappedValue);
+  //webSerial.printf("- safetyMaximum: %li", safetyMaximum);
+  //webSerial.printf("- remapped value: %li", remappedValue);
+  long currentPosition = stepper[stepperId]->getCurrentPosition();
+  webSerial.printf("stepper: %i osc input: %f safetyMin: %li safetyMax: %li remappedto: %li currentposition: %li" , stepperId, normalizedPosition, safetyMinimum, safetyMaximum, remappedValue, currentPosition);
+  
   stepper[stepperId]->moveTo(remappedValue);
   updateBottomScreenPositionSlider(normalizedPosition*100);
 }

@@ -37,11 +37,11 @@ unsigned long lastHeartbeat = 0;
 
 
 void onOSCReceivedBottomScreenPosition(OscMessage& m) {
-    webSerial.printf("received bottom position: %f", m.arg<float>(0));
+    //webSerial.printf("received bottom position: %f", m.arg<float>(0));
     moveScreenSafelyFromNormalizedPosition(0, float(m.arg<float>(0)));
 }
 void onOSCReceivedTopScreenPosition(OscMessage& m) {
-    webSerial.printf("received top position: %f", m.arg<float>(0));
+    //webSerial.printf("received top position: %f", m.arg<float>(0));
     moveScreenSafelyFromNormalizedPosition(1, float(m.arg<float>(0)));
 }
 
@@ -140,6 +140,12 @@ void loop() {
   OscEther.update();
   //artnet.parse();  // check if artnet packet has come and execute callback function
 
+  long currentPositionStepper0 = stepper[0]->getCurrentPosition();
+  long currentPositionStepper1 = stepper[1]->getCurrentPosition();
+
+  updateUICurrentPosition(0, currentPositionStepper0);
+  updateUICurrentPosition(1, currentPositionStepper1);
+  //webSerial.printf("current raw position stepper0: %li", currentPositionStepper0);
 }
 
 
