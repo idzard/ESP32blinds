@@ -33,6 +33,8 @@ uint16_t calibratedStatusStepper0, calibratedStatusStepper1;
 uint16_t homedStatusStepper0, homedStatusStepper1;
 uint16_t bottomScreenPositionSlider, topScreenPositionSlider;
 
+uint16_t positionStepper0, positionStepper1;
+
 void textCallback(Control *sender, int type);
 void generalCallback(Control *sender, int type);
 
@@ -62,6 +64,15 @@ void updateBottomScreenPositionSlider(uint8_t percentage) {
 }
 void updateTopScreenPositionSlider(uint8_t percentage) {
     ESPUI.updateSlider(topScreenPositionSlider, percentage);
+}
+
+void updateUICurrentPosition(uint8_t stepperId, long position){
+    if (stepperId == 0) {
+        ESPUI.updateLabel(positionStepper0, String(position));
+    }
+    else if (stepperId == 1) {
+        ESPUI.updateLabel(positionStepper1, String(position));
+    } 
 }
 
 
@@ -180,7 +191,7 @@ void setupUI() {
         homedStatusStepper0 = ESPUI.addControl(Label, "Homed Stepper 0", "Not homed yet.", Dark, calibratedStatusStepper0);
         updateHomingStatusStepper(0);
         ESPUI.addControl(Button, "Home stepper0", "Home stepper0", ControlColor::Dark, calibratedStatusStepper0, homeStepper0Callback);
-
+        positionStepper0 = ESPUI.addControl(Label, "currentPosition", "", ControlColor::Dark, calibratedStatusStepper0);
         ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, calibratedStatusStepper0, forward0Callback);
         ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, calibratedStatusStepper0, stopCallback);
 
@@ -192,7 +203,7 @@ void setupUI() {
         homedStatusStepper1 = ESPUI.addControl(Label, "Homed Stepper 1", "Not homed yet.", Dark, calibratedStatusStepper1);
         updateHomingStatusStepper(1);
         ESPUI.addControl(Button, "Home stepper1", "Home stepper1", ControlColor::Dark, calibratedStatusStepper1, homeStepper1Callback);
-
+        positionStepper1 = ESPUI.addControl(Label, "currentPosition", "", ControlColor::Dark, calibratedStatusStepper1);
         ESPUI.addControl(Button, "forward", "forward", ControlColor::Dark, calibratedStatusStepper1, forward1Callback);
         ESPUI.addControl(Button, "stop", "stop", ControlColor::Alizarin, calibratedStatusStepper1, stopCallback);
 
