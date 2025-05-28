@@ -12,8 +12,8 @@
 // #define dirPinStepper1 33 
 
 //production
-#define stepPinStepper0 32 
-#define dirPinStepper0 33
+#define stepPinStepper0 32 //CFG
+#define dirPinStepper0 33  //485_EN
 #define stepPinStepper1 15
 #define dirPinStepper1 14 
 
