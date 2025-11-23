@@ -1,0 +1,9 @@
+{
+  "mdnsName": "window4",
+  "ipadress": "10.0.0.104",
+  "gateway":  "10.0.0.1",
+  "subnet":   "255.255.255.0",
+  "reverseStepper0": false,
+  "reverseStepper1": true,
+  "dmxChannelOffset": 12
+}

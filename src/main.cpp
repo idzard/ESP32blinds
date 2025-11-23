@@ -152,11 +152,18 @@ void loop() {
 void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &metadata, const ArtNetRemoteInfo &remote) {
     // will be called on incoming artnet data
     
+    // DMX channel offset for this device
+    // Device 1 (10.0.0.101): offset = 0  (channels 1-4)
+    // Device 2 (10.0.0.102): offset = 4  (channels 5-8)
+    // Device 3 (10.0.0.103): offset = 8  (channels 9-12)
+    // Device 4 (10.0.0.104): offset = 12 (channels 13-16)
+    uint8_t offset = 0;  // <-- CHANGE THIS VALUE for each device
+    
     //combine two bytes into a 16 bit value
-    uint16_t m1 = (data[0] * 256) + data[1];
+    uint16_t m1 = (data[offset + 0] * 256) + data[offset + 1];
     //webSerial.print("M1: %hi", m1);
   
-    uint16_t m2 = (data[2] * 256) + data[3];
+    uint16_t m2 = (data[offset + 2] * 256) + data[offset + 3];
     //webSerial.print("M2: %hi", m2);
 
     if (calibratedStepper[0]){
