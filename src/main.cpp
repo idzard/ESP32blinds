@@ -176,8 +176,8 @@ void onArtnetReceive(const uint8_t *data, uint16_t size, const ArtDmxMetadata &m
       //webSerial.println("> incoming artnet but stepper0 not calibrated");
     }
     if (calibratedStepper[1]){
-      long remappedPosStepper1 = (long)(((long long)m1 * maxPositionStepper[1]) / 65535LL);
-      //webSerial.print(">>> moving stepper0 to: %li",remappedPosStepper1 );
+      long remappedPosStepper1 = (long)(((long long)m2 * maxPositionStepper[1]) / 65535LL);
+      //webSerial.printf(">>> moving stepper1 to: %li",remappedPosStepper1 );
       stepper[1]->moveTo(remappedPosStepper1);
     } else{
       //webSerial.println("> incoming artnet but stepper1 not calibrated");
